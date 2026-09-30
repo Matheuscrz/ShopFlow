@@ -17,7 +17,7 @@ flowchart LR
     F7 --> F8
     F8 --> F9["Fase 9<br/>Qualidade e demo"]
     F9 --> F10["Fase 10<br/>Documentação final"]
-    F10 --> F11["Fase 11<br/>Busca inteligente e projeções"]
+    F10 -.->|"opcional, após a 1.0"| F11["Fase 11<br/>CDC e busca inteligente"]
 ```
 
 ## Fase 0: Fundação
@@ -30,6 +30,7 @@ flowchart LR
 - [ ] Tratamento global de erros (RFC 9457) em módulo compartilhado
 - [ ] Pipeline de CI: build e testes
 - [ ] `libs/event-contracts` com o envelope de eventos
+- [ ] Estrutura de pacotes Ports and Adapters em cada serviço e regra inicial de ArchUnit (ADR-020)
 
 **Entregável:** `docker compose up` sobe a infraestrutura e cada serviço responde `/actuator/health`.
 
@@ -143,38 +144,43 @@ Resultado: 1 StockReserved, 9 StockRejected, estoque final 0
 
 - [ ] Diagramas conferidos contra o comportamento real (ajustar o que divergir)
 - [ ] ADRs revisados. Quebrar em `docs/adr/` se preferir arquivos individuais
-- [ ] Seção 11 do ARCHITECTURE.md revisada (itens 🔵)
+- [ ] Seções 10.3 e 11 do ARCHITECTURE.md revisadas (itens 🔵)
 - [ ] README com GIF ou capturas da demo
 - [ ] Vídeo curto ou roteiro de apresentação da arquitetura
 
 **Entregável:** repositório pronto para ser apresentado como evidência técnica.
 
-## Fase 11: Busca inteligente e projeções
+## Fase 11: CDC e busca inteligente (opcional)
 
-- [ ] Executar Kafka Connect com Debezium em ambiente local
-- [ ] Configurar PostgreSQL com logical replication
-- [ ] Criar conector Debezium para `catalog_db`
-- [ ] Criar indexador de produtos
-- [ ] Executar OpenSearch com profile opcional
-- [ ] Implementar busca fuzzy e autocomplete
-- [ ] Implementar reindexação completa do catálogo
-- [ ] Definir fallback para busca nativa do PostgreSQL
-- [ ] Testar atraso e recuperação da indexação
+Fase posterior à versão 1.0. Só começa depois que a Fase 10 estiver concluída.
 
-**Entregável:** a busca inteligente funciona com OpenSearch, mas o PostgreSQL
-continua sendo a fonte de verdade.
+- [ ] Perfil `cdc` no Compose: Kafka Connect com Debezium (porta 8085 no host, pois a 8083 é do `order-service`)
+- [ ] PostgreSQL com `wal_level=logical` e usuário de replicação
+- [ ] Conector Debezium para as tabelas de produtos e categorias de `catalog_db`
+- [ ] `search-indexer`: consome os tópicos de CDC, traduz para o documento de busca e indexa (sem ler o banco do catálogo)
+- [ ] Perfil `search`: OpenSearch com mapeamento de produtos e analisador em português
+- [ ] Busca fuzzy e autocomplete no catálogo
+- [ ] Fallback ao PostgreSQL quando o OpenSearch estiver indisponível ou lento
+- [ ] Reindexação completa com índice novo e troca de alias
+- [ ] Testes: atraso do indexador, recuperação após falha do conector e OpenSearch parado
+- [ ] Atualizar os diagramas 10.1 e 11.5 do ARCHITECTURE.md conforme o que foi implementado
+
+**Entregável:** a busca inteligente funciona com OpenSearch e continua funcionando pelo PostgreSQL se o OpenSearch cair. O PostgreSQL permanece como fonte de verdade.
 
 ### Decisão sobre novas tecnologias
 
-| Tecnologia    | Decisão                          | Motivo                                                                            |
-| ------------- | -------------------------------- | --------------------------------------------------------------------------------- |
-| Redis         | Adotado                          | Cache-aside e futuras funcionalidades de rate limiting                            |
-| Debezium      | Planejado, executável localmente | CDC e projeções de leitura                                                        |
-| OpenSearch    | Planejado e opcional             | Busca fuzzy e relevância                                                          |
-| Elasticsearch | Não adotado inicialmente         | OpenSearch oferece alternativa compatível e mais adequada ao requisito de licença |
-| Kong          | Alternativa documentada          | Gateway funcional, gratuito e baseado em plugins                                  |
+| Tecnologia           | Decisão                 | Motivo                                                                               |
+| -------------------- | ----------------------- | ------------------------------------------------------------------------------------ |
+| Redis                | Adotado na versão 1.0   | Cache-aside do catálogo. Rate limiting com Redis é um item 🔵                        |
+| Spring Cloud Gateway | Adotado                 | Mesma stack Java dos serviços (ADR-019)                                              |
+| Debezium             | Opcional (Fase 11)      | CDC para índices e projeções. Não substitui a Outbox                                 |
+| OpenSearch           | Opcional (Fase 11)      | Busca fuzzy, autocomplete e relevância, com licença Apache 2.0                       |
+| Elasticsearch        | Não adotado             | O OpenSearch atende ao requisito. Trocar exigiria ajustar o indexador e as consultas |
+| Kong                 | Alternativa documentada | Plugins prontos de tráfego. Conferir a edição e a licença da versão antes de adotar  |
 
 ## Definição de pronto da versão 1.0
+
+A versão 1.0 corresponde às Fases 0 a 10. A Fase 11 é opcional.
 
 - [ ] Cliente navega, monta carrinho e finaliza compra pela interface
 - [ ] Preço sempre calculado no servidor e copiado para o item

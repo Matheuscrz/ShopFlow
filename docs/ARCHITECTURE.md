@@ -24,12 +24,14 @@ Este documento descreve **como o ShopFlow funciona**, principalmente por meio de
 9. [Contratos de API](#9-contratos-de-api)
 10. [Implantação e CI/CD](#10-implantação-e-cicd)
 11. [Planejado, sem código](#11-planejado-sem-código)
-    11.1 [Observabilidade](#111-observabilidade)
-    11.2 [Segurança avançada](#112-segurança-avançada)
-    11.3 [Idempotência de requisições](#113-idempotência-de-requisições)
-    11.4 [Resiliência](#114-resiliência)
-    11.5 [CDC e busca inteligente](#115-cdc-e-busca-inteligente)
-    11.6 [Kong Gateway](#116-kong-gateway)
+    - [11.1 Observabilidade](#111-observabilidade)
+    - [11.2 Segurança avançada](#112-segurança-avançada)
+    - [11.3 Idempotência de requisições](#113-idempotência-de-requisições)
+    - [11.4 Resiliência](#114-resiliência)
+    - [11.5 CDC e busca inteligente](#115-cdc-e-busca-inteligente)
+    - [11.6 Kong Gateway](#116-kong-gateway)
+    - [11.7 Integração com BFF via webhooks](#117-integração-com-bff-via-webhooks)
+    - [11.8 Evolução para produção](#118-evolução-para-produção)
 12. [Architecture Decision Records](#12-architecture-decision-records-adrs)
 13. [Estratégia de testes](#13-estratégia-de-testes)
 
@@ -82,6 +84,9 @@ mindmap
       Rate limit e 2FA
       Idempotency Key
       Circuit Breaker
+      CDC com Debezium
+      Busca com OpenSearch
+      Kong como alternativa
 ```
 
 ### Índice de diagramas
@@ -97,7 +102,7 @@ mindmap
 | 7   | Máquinas de estado                                                                                            | 7           |
 | 8   | ER por serviço                                                                                                | 8           |
 | 9   | Implantação, rede e CI/CD                                                                                     | 10          |
-| 10  | Observabilidade, segurança, idempotência, resiliência, BFF, produção (planejados)                             | 11          |
+| 10  | Observabilidade, segurança, idempotência, resiliência, CDC e busca, Kong, BFF e produção (planejados)         | 11          |
 
 ---
 
@@ -228,6 +233,8 @@ flowchart TB
 
 Linhas contínuas são chamadas síncronas. Linhas pontilhadas são comunicação assíncrona por Kafka.
 
+Debezium (Kafka Connect), OpenSearch e o `search-indexer` são opcionais e não aparecem neste diagrama. Eles fazem parte da Fase 11 do roadmap e estão descritos em [10.3](#103-perfis-opcionais-do-compose) e [11.5](#115-cdc-e-busca-inteligente). Kong é apenas uma alternativa ao gateway atual ([11.6](#116-kong-gateway)).
+
 ### Responsabilidades
 
 | Contêiner                   | Responsabilidade                                                                             | Dados que possui          | Status |
@@ -246,6 +253,8 @@ Linhas contínuas são chamadas síncronas. Linhas pontilhadas são comunicaçã
 ---
 
 ## 4. C4 nível 3: Componentes
+
+Cada serviço segue **Ports and Adapters** (ADR-020). Nos diagramas desta seção, os agrupamentos correspondem aos pacotes assim: **Entrada** = `adapter/in` (web e messaging), **Aplicação** = `application` (casos de uso e ports), **Domínio** = `domain` e **Saída** = `adapter/out` (persistence, messaging e client).
 
 ### 4.1 Outbox e fila: como interagem
 
@@ -1536,7 +1545,7 @@ Nunca há stack trace na resposta.
 flowchart TB
     browser["Navegador"]
 
-    subgraph app["Aplicação ShopFlow"]
+    subgraph appGroup["Aplicação ShopFlow"]
         frontend["frontend<br/>React + Nginx<br/>:3000"]
         gateway["api-gateway<br/>Spring Cloud Gateway<br/>:8080"]
         identity["identity-service<br/>:8081"]
@@ -1545,21 +1554,21 @@ flowchart TB
         notification["notification-service<br/>:8084"]
     end
 
-    subgraph data["Dados e mensageria"]
+    subgraph dataGroup["Dados e mensageria"]
         postgres[("PostgreSQL 16<br/>:5432")]
         redis[("Redis 7<br/>:6379")]
         kafka[["Kafka KRaft<br/>:9092"]]
         kafkaInit["kafka-init"]
     end
 
-    subgraph tools["Ferramentas locais"]
+    subgraph toolsGroup["Ferramentas locais"]
         kafkaUi["Kafka UI<br/>:8090"]
         mailhog["MailHog<br/>:8025"]
         wiremock["WireMock<br/>:8089"]
     end
 
-    subgraph optional["Perfis opcionais"]
-        connect["Kafka Connect + Debezium<br/>:8083"]
+    subgraph optionalGroup["Perfis opcionais"]
+        connect["Kafka Connect + Debezium<br/>:8085"]
         opensearch[("OpenSearch<br/>:9200")]
     end
 
@@ -1601,10 +1610,9 @@ flowchart TB
     class connect,opensearch optional
 ```
 
-O Compose padrão sobe a infraestrutura principal. Debezium e OpenSearch são
-ativados separadamente pelos profiles `cdc` e `search`. Os microsserviços da
-aplicação serão adicionados ao Compose conforme as fases do roadmap forem
-implementadas.
+O Compose padrão sobe a aplicação e a infraestrutura principal. Debezium e OpenSearch são ativados separadamente pelos profiles `cdc` e `search`. Durante a implementação, os microsserviços entram no Compose conforme as fases do roadmap.
+
+O Kafka Connect escuta na porta interna 8083 e é publicado no host em **8085**, porque a 8083 já é usada pelo `order-service`.
 
 ### 10.2 Pipeline de CI 🟢
 
@@ -1621,66 +1629,30 @@ flowchart LR
     pub -->|"não"| fim["Fim"]
 ```
 
-### 10.3 Serviços opcionais de plataforma
+### 10.3 Perfis opcionais do Compose
 
-#### Debezium
+Nenhum destes perfis é necessário para a versão 1.0.
 
-Debezium será executado pelo Kafka Connect e capturará alterações do PostgreSQL
-usando logical replication.
+| Perfil   | Serviços                                          | Porta no host       | Pré-requisito                               | Detalhes                             |
+| -------- | ------------------------------------------------- | ------------------- | ------------------------------------------- | ------------------------------------ |
+| `cdc`    | Kafka Connect + Debezium PostgreSQL Connector     | 8085 (interna 8083) | PostgreSQL com `wal_level=logical`          | [11.5](#115-cdc-e-busca-inteligente) |
+| `search` | OpenSearch (e o `search-indexer`, quando existir) | 9200                | Memória suficiente para a JVM do OpenSearch | [11.5](#115-cdc-e-busca-inteligente) |
 
-```mermaid
-flowchart LR
-    PG[("PostgreSQL<br/>logical replication")]
-    DBZ["Debezium PostgreSQL Connector"]
-    KC["Kafka Connect"]
-    K[["Kafka"]]
-    IDX["Indexador"]
-    OS[("OpenSearch")]
-
-    PG --> DBZ --> KC --> K
-    K --> IDX --> OS
+```bash
+docker compose -f infra/docker-compose.yml --profile cdc --profile search up -d
 ```
 
-Debezium não substitui automaticamente a Transactional Outbox. O Outbox continua
-sendo o padrão principal para eventos de domínio. Debezium poderá ser usado para:
+O Kong não entra no Compose: ele é uma alternativa ao gateway atual, não um serviço adicional ([11.6](#116-kong-gateway)).
 
-- alimentar índices de busca;
-- construir projeções de leitura;
-- integrar dados com plataformas analíticas;
-- reduzir polling em cenários de alto volume.
+---
 
-#### Busca inteligente
-
-A busca pública continuará tendo o PostgreSQL como fallback. O OpenSearch será
-adicionado apenas para funcionalidades que exigem:
-
-- tolerância a erros de digitação;
-- autocomplete;
-- busca por relevância;
-- sinônimos;
-- stemming;
-- filtros e agregações complexas.
-
-O catálogo no PostgreSQL permanece como fonte de verdade. A indexação é
-eventualmente consistente e pode ser reconstruída a partir dos dados persistidos.
-
-#### Kong Gateway
-
-Kong Gateway é uma alternativa gratuita para o API Gateway, especialmente útil
-para rate limiting, plugins, métricas e gerenciamento de tráfego. A decisão atual
-é manter o Spring Cloud Gateway, pois ele já está alinhado à implementação Java e
-aos testes do projeto.
-
-Kong poderá ser introduzido posteriormente como gateway de borda, mantendo as
-regras de negócio e autorização nos serviços.
-
-```
+---
 
 ## 11. Planejado, sem código
 
-Os itens desta seção estão documentados, mas não fazem parte da implementação
-atual. Eles não devem ser classificados como disponíveis apenas porque possuem
-imagens Docker no ambiente local.
+Os itens desta seção estão documentados, mas não fazem parte da implementação atual. Eles não devem ser classificados como disponíveis apenas porque possuem imagens Docker no ambiente local.
+
+CDC com Debezium, OpenSearch e o `search-indexer` (11.5) formam a Fase 11 do roadmap, opcional e posterior à versão 1.0. Enquanto essa fase não for executada, continuam 🔵.
 
 ### 11.1 Observabilidade
 
@@ -1713,6 +1685,35 @@ Planejado:
 - traces armazenados no Tempo;
 - alertas para consumer lag, DLT, erro de checkout e latência.
 
+Propagação de trace entre HTTP e Kafka:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as SPA
+    participant G as Gateway
+    participant O as order-service
+    participant K as Kafka
+    participant C as catalog-service
+
+    S->>G: Requisição
+    G->>G: Cria trace (traceparent)
+    G->>O: HTTP com traceparent
+    O->>O: Grava traceparent e correlationId no envelope da Outbox
+    O->>K: Publica com headers traceparent e correlation-id
+    K->>C: Entrega com os headers
+    C->>C: Continua o mesmo trace (span filho)
+    Note over S,C: Um único traceId liga clique, checkout, reserva e notificação. Todo log carrega traceId e correlationId.
+```
+
+| Sinal                  | Itens                                                                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Métricas RED           | Taxa, erros e duração por rota (gateway e serviços)                                                                                           |
+| Métricas de negócio    | `orders_created_total`, `orders_by_status`, `stock_rejections_total`, `payment_rejections_total`                                              |
+| Métricas de mensageria | `outbox_pending_events`, `outbox_oldest_pending_seconds`, `kafka_consumer_lag`, `dlt_messages_total`                                          |
+| Alertas sugeridos      | Outbox pendente mais antigo maior que 60 s, mensagens na DLT maiores que 0, taxa de 5xx acima de 2%, latência p95 do checkout acima de 800 ms |
+| Logs                   | JSON estruturado, sem PII (e-mail mascarado), com `traceId`, `correlationId`, `userId`                                                        |
+
 ### 11.2 Segurança avançada
 
 - rate limiting por IP, usuário e rota;
@@ -1721,6 +1722,86 @@ Planejado:
 - autenticação 2FA por TOTP;
 - rotação automatizada das chaves JWT;
 - mTLS entre serviços.
+
+#### Rate limiting no gateway
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Cliente
+    participant G as Gateway
+    participant R as Redis
+    participant S as Serviço
+
+    C->>G: POST /api/auth/login
+    G->>R: Token bucket (chave = rota + IP ou userId)
+    alt Bucket vazio
+        G-->>C: 429 Too Many Requests + Retry-After
+        G->>R: INCR violações do IP
+    else Há token
+        G->>S: encaminha
+        S-->>C: resposta
+    end
+```
+
+| Rota                  | Limite sugerido                  |
+| --------------------- | -------------------------------- |
+| `/api/auth/login`     | 5 por minuto por IP e por e-mail |
+| `/api/auth/register`  | 3 por hora por IP                |
+| `/api/**` autenticado | 120 por minuto por usuário       |
+
+#### Blacklist de IPs
+
+```mermaid
+flowchart TB
+    v["Violação de rate limit<br/>ou login falho repetido"] --> c{"Violações do IP<br/>em 10 min maior que 20?"}
+    c -->|"não"| ok["Segue normal"]
+    c -->|"sim"| ban["Redis SET blacklist:ip TTL 1 h<br/>(bloqueio temporário)"]
+    ban --> gwf["Filtro do gateway<br/>consulta blacklist antes de rotear"]
+    gwf --> r403["403 Forbidden"]
+    ban --> audit["Registra evento de segurança"]
+    admin["Admin"] -->|"consulta ou remove"| ban
+```
+
+#### Blind Login (sem enumeração de usuários)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Cliente
+    participant I as identity-service
+
+    C->>I: POST /login (e-mail, senha)
+    alt Usuário não existe
+        I->>I: Executa verificação Argon2id contra hash falso (tempo constante)
+    else Usuário existe
+        I->>I: Verifica senha real
+    end
+    I-->>C: Mesma resposta 401 "Credenciais inválidas" e mesmo tempo para os dois casos
+    Note over C,I: O cadastro também responde de forma neutra ("se o e-mail for válido, enviaremos instruções"), sem revelar se a conta existe.
+```
+
+#### 2FA (TOTP)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Usuário
+    participant I as identity-service
+    participant A as App autenticador
+
+    U->>I: POST /2fa/setup
+    I-->>U: Segredo TOTP (QR code)
+    U->>A: Escaneia o QR
+    U->>I: POST /2fa/verify (código de 6 dígitos)
+    I-->>U: 2FA ativado + códigos de recuperação (uso único)
+
+    U->>I: POST /login (e-mail, senha)
+    I-->>U: 200 {mfaRequired: true, mfaToken de 5 min}
+    U->>I: POST /login/mfa (mfaToken + código)
+    I->>I: Valida janela de 30 s (tolerância de ±1)
+    I-->>U: accessToken + refreshToken (claim amr = pwd, otp)
+```
 
 ### 11.3 Idempotência de requisições
 
@@ -1735,6 +1816,42 @@ A unicidade será garantida por:
 
 Requisições repetidas retornarão o mesmo `orderId`, sem criar outro pedido.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Cliente
+    participant O as order-service
+    participant D as order_db
+
+    C->>O: POST /checkout (Idempotency-Key: K1)
+    O->>D: INSERT idempotency_keys (K1, user, request_hash, IN_PROGRESS)
+    alt Conflito: chave já existe
+        O->>D: SELECT chave K1
+        alt request_hash diferente
+            O-->>C: 422 (chave reutilizada com outro corpo)
+        else Ainda IN_PROGRESS
+            O-->>C: 409 (requisição em andamento)
+        else COMPLETED
+            O-->>C: Reproduz status e corpo salvos (nenhum pedido novo)
+        end
+    else Primeira vez
+        O->>O: Executa o checkout normal
+        O->>D: UPDATE idempotency_keys (COMPLETED, status, body)
+        O-->>C: 202 Accepted
+    end
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> IN_PROGRESS: primeira requisição
+    IN_PROGRESS --> COMPLETED: resposta salva
+    IN_PROGRESS --> EXPIRED: processo morreu, lock vencido
+    COMPLETED --> EXPIRED: TTL de 24 h
+    EXPIRED --> [*]
+```
+
+Tabela: `idempotency_keys(key, user_id, request_hash, status, response_status, response_body, created_at, expires_at)` com **unicidade em `(user_id, key)`**. O PostgreSQL é a fonte de verdade. Redis não é usado para isso.
+
 ### 11.4 Resiliência
 
 - Circuit Breaker com Resilience4j;
@@ -1743,6 +1860,29 @@ Requisições repetidas retornarão o mesmo `orderId`, sem criar outro pedido.
 - timeouts explícitos;
 - fallback para operações de leitura;
 - testes de falhas entre serviços.
+
+Onde cada mecanismo entraria:
+
+```mermaid
+flowchart LR
+    ord["order-service<br/>CheckoutService"] --> tl["TimeLimiter 2 s"]
+    tl --> cb["CircuitBreaker"]
+    cb --> rt["Retry<br/>3x, backoff + jitter<br/>(apenas GET/quote, idempotente)"]
+    rt --> bh["Bulkhead<br/>máx. 20 chamadas simultâneas"]
+    bh --> cat["catalog-service<br/>/internal/catalog/quote"]
+    cb -.->|"aberto"| fb["Fallback<br/>503 imediato com Retry-After"]
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED
+    CLOSED --> OPEN: taxa de falha maior que 50% em 20 chamadas
+    OPEN --> HALF_OPEN: após 30 s
+    HALF_OPEN --> CLOSED: 3 chamadas de teste com sucesso
+    HALF_OPEN --> OPEN: qualquer falha
+```
+
+**O que já existe no código** (necessário para as funcionalidades básicas): timeouts HTTP, retry com backoff da Outbox, retry e DLT dos consumidores, retry de webhook e degradação graciosa do cache. **O que é apenas planejado:** Circuit Breaker, Bulkhead e retry de chamadas HTTP com Resilience4j.
 
 ### 11.5 CDC e busca inteligente
 
@@ -1782,30 +1922,282 @@ O OpenSearch será opcional e destinado a:
 O PostgreSQL permanece como fonte de verdade. A busca em OpenSearch possui
 consistência eventual e deve permitir reindexação completa.
 
+Fallback da busca:
+
+```mermaid
+flowchart TB
+    q["GET /api/catalog/products?q=teclado"] --> c{"OpenSearch habilitado<br/>e saudável?"}
+    c -->|"sim"| os["Consulta o índice<br/>fuzzy, autocomplete, relevância"]
+    c -->|"não, ou timeout"| pg["Consulta o PostgreSQL<br/>ILIKE ou pg_trgm"]
+    os --> resp["Resposta ao cliente"]
+    pg --> resp
+```
+
+Reindexação completa, sem que o indexador leia o banco do catálogo:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Op as Operador
+    participant KC as Kafka Connect (Debezium)
+    participant K as Kafka
+    participant I as search-indexer
+    participant OS as OpenSearch
+
+    Op->>I: Inicia reindexação
+    I->>OS: Cria índice novo (products_v2)
+    Op->>KC: Reexecuta o snapshot do conector
+    KC->>K: Registros de leitura inicial de products (tópico de CDC)
+    loop Para cada registro
+        K->>I: Registro do produto
+        I->>I: Traduz o modelo de tabela para o documento de busca
+        I->>OS: Indexa em products_v2
+    end
+    I->>OS: Aponta o alias products para products_v2
+    I->>OS: Remove o índice antigo
+    Note over I,OS: Durante todo o processo a busca continua no índice antigo ou, se preciso, no PostgreSQL.
+```
+
 ### 11.6 Kong Gateway
+
+Kong é uma alternativa ao gateway atual, não um componente adicional.
 
 ```mermaid
 flowchart LR
-    client["Cliente"] --> kong["Kong Gateway<br/>alternativa futura"]
-    kong --> spring["Spring Cloud Gateway<br/>opção atual"]
-    spring --> services["Microsserviços"]
+    subgraph atual["Opção atual"]
+        c1["Cliente"] --> scg["Spring Cloud Gateway"] --> s1["Microsserviços"]
+    end
+    subgraph alt["Alternativa documentada"]
+        c2["Cliente"] --> kong["Kong Gateway<br/>plugins de JWT, rate limiting e métricas"] --> s2["Microsserviços"]
+    end
 ```
 
-O gateway atual é o Spring Cloud Gateway. Kong permanece como alternativa para
-um cenário futuro com plugins de rate limiting, autenticação, métricas e
-gerenciamento de tráfego.
+Se a troca acontecesse, cada responsabilidade do gateway atual teria um equivalente em plugins:
 
-Não serão utilizados dois gateways simultaneamente no ambiente principal.
+| Responsabilidade                              | Spring Cloud Gateway (atual)   | Kong (alternativa)                                                 |
+| --------------------------------------------- | ------------------------------ | ------------------------------------------------------------------ |
+| Roteamento                                    | `RouteLocator`                 | Services e Routes                                                  |
+| Validação de JWT com JWKS                     | Resource Server                | Plugin de JWT ou OIDC (conferir a disponibilidade na edição usada) |
+| Sanitização de headers e propagação de claims | Filtros próprios               | Plugins de transformação de requisição                             |
+| Correlation ID                                | `CorrelationIdFilter`          | Plugin `correlation-id`                                            |
+| Rate limiting                                 | Bucket4j com Redis (planejado) | Plugin `rate-limiting`                                             |
+| Métricas                                      | Micrometer                     | Plugin `prometheus`                                                |
+
+Decisões:
+
+- O gateway atual é o Spring Cloud Gateway, alinhado à stack Java e aos testes do projeto (ADR-019).
+- Não serão utilizados dois gateways simultaneamente no ambiente principal.
+- A autorização por ownership continua nos serviços, qualquer que seja o gateway.
+- A edição gratuita do Kong e as regras de licenciamento das versões recentes devem ser conferidas antes de qualquer adoção.
+
+### 11.7 Integração com BFF via webhooks
+
+```mermaid
+flowchart LR
+    sf["ShopFlow<br/>notification-service"] -->|"Webhook order.completed<br/>HTTPS + HMAC"| bff["BFF Mobile (fora do escopo)<br/>valida assinatura e deduplica"]
+    bff --> store[("Cache/BD do BFF<br/>visão agregada do pedido")]
+    bff --> push["Push notification"]
+    app["App mobile"] -->|"GraphQL ou REST agregado"| bff
+    bff -->|"Consulta detalhes se preciso"| gw["ShopFlow API Gateway"]
+```
+
+O BFF agregaria dados de várias fontes para uma experiência específica de canal. O ShopFlow demonstra apenas o lado do produtor de webhooks, com contrato, assinatura e retries.
+
+### 11.8 Evolução para produção
+
+```mermaid
+flowchart TB
+    cdn["CDN + WAF"] --> ing["Ingress Controller"]
+    ing --> gw["API Gateway<br/>(HPA: 2 a 6 réplicas)"]
+    gw --> svcs["Serviços em Kubernetes<br/>(HPA por CPU e por consumer lag)"]
+    svcs --> pgha[("PostgreSQL gerenciado<br/>primário + réplica, um cluster por serviço crítico")]
+    svcs --> rha[("Redis gerenciado<br/>com réplica")]
+    svcs --> kc[["Kafka gerenciado<br/>3 brokers, replication.factor = 3, min.insync.replicas = 2"]]
+    svcs --> obs["Stack de observabilidade"]
+    sec["Secrets Manager"] -.-> svcs
+    ci["CI/CD"] -->|"Helm / GitOps"| svcs
+```
+
+Mudanças relevantes em relação ao ambiente local: um banco por serviço em cluster próprio, `replication.factor = 3`, secrets em cofre, mTLS entre serviços (substitui o `X-Internal-Token`), Debezium como alternativa ao polling da Outbox se o volume exigir, e Schema Registry para os eventos. Se a busca inteligente for adotada, o OpenSearch também seria gerenciado.
 
 ### Status dos componentes planejados
 
-| Componente    | Status | Observação                          |
-| ------------- | ------ | ----------------------------------- |
-| OpenTelemetry | 🔵     | Planejado                           |
-| Prometheus    | 🔵     | Planejado                           |
-| Grafana       | 🔵     | Planejado                           |
-| Loki          | 🔵     | Planejado                           |
-| Tempo         | 🔵     | Planejado                           |
-| Debezium      | 🔵     | Container opcional para CDC         |
-| OpenSearch    | 🔵     | Container opcional para busca       |
-| Kong          | 🔵     | Alternativa ao Spring Cloud Gateway |
+| Componente               | Status | Observação                                    |
+| ------------------------ | ------ | --------------------------------------------- |
+| OpenTelemetry            | 🔵     | Planejado                                     |
+| Prometheus               | 🔵     | Planejado                                     |
+| Grafana                  | 🔵     | Planejado                                     |
+| Loki                     | 🔵     | Planejado                                     |
+| Tempo                    | 🔵     | Planejado                                     |
+| Resilience4j e Bucket4j  | 🔵     | Circuit Breaker, Bulkhead e rate limiting     |
+| Kafka Connect + Debezium | 🔵     | Container opcional (perfil `cdc`), Fase 11    |
+| OpenSearch               | 🔵     | Container opcional (perfil `search`), Fase 11 |
+| search-indexer           | 🔵     | Serviço opcional da Fase 11                   |
+| Kong                     | 🔵     | Alternativa ao Spring Cloud Gateway           |
+| BFF                      | 🔵     | Sistema externo, fora do escopo de código     |
+
+---
+
+## 12. Architecture Decision Records (ADRs)
+
+Formato: **Contexto → Decisão → Consequências → Alternativas rejeitadas**. Todos com status **Aceita**. Os ADRs 017 e 018 são aceitos com implementação opcional (Fase 11).
+
+### ADR-001: Poucos microsserviços, divididos por contexto de negócio
+
+- **Contexto:** O projeto precisa demonstrar arquitetura distribuída sem inflar o escopo.
+- **Decisão:** Cinco unidades de deploy: gateway, identity, catalog (com estoque como módulo), order (com pagamento e entrega simulados) e notification. Um sexto serviço, o `search-indexer`, só existiria na Fase 11 opcional (ADR-018).
+- **Consequências:** Fronteiras claras com custo operacional administrável. O estoque pode ser extraído do catalog depois, pois é um módulo com interface própria.
+- **Alternativas:** Monólito modular (não demonstra comunicação assíncrona real). Microsserviço para cada conceito, como pagamento, entrega e estoque (complexidade sem justificativa).
+
+### ADR-002: Um banco por serviço
+
+- **Decisão:** Bancos lógicos separados (`identity_db`, `catalog_db`, `order_db`, `notification_db`) na mesma instância PostgreSQL local. Nenhum serviço acessa o banco do outro.
+- **Consequências:** Baixo acoplamento e deploy independente. Sem JOIN entre serviços, então dados necessários são copiados no evento ou consultados por API. Em produção cada banco pode virar um cluster.
+- **Alternativas:** Banco compartilhado (acoplamento por schema).
+
+### ADR-003: Apache Kafka como broker
+
+- **Contexto:** O mesmo evento (`OrderPaid`) é consumido por mais de um serviço, e reprocessar histórico é desejável.
+- **Decisão:** Kafka em modo KRaft, com tópicos por agregado (`order.events`, `inventory.events`) e chave `orderId`.
+- **Consequências:** Fan-out por consumer groups, ordem por pedido, retenção e replay. Mais conceitos operacionais (partições, offsets, rebalance).
+- **Alternativas:** RabbitMQ (excelente para filas de trabalho e roteamento, mas o replay e o fan-out com retenção são menos naturais). A troca afetaria apenas a camada do `outbox-starter`.
+
+### ADR-004: Transactional Outbox com publicador por polling
+
+- **Contexto:** Gravar no banco e publicar no broker são dois sistemas: falhar entre eles gera dual write (pedido salvo sem evento ou evento sem pedido).
+- **Decisão:** O evento é gravado em `outbox_events` na mesma transação do dado. Um relay publica com `FOR UPDATE SKIP LOCKED`, em lotes, com retry e backoff.
+- **Consequências:** Nenhum evento é perdido após o commit. Entrega at-least-once, latência de algumas centenas de ms e necessidade de limpeza da tabela.
+- **Alternativas:** Dual write (inseguro). CDC com Debezium lendo a própria tabela Outbox (elimina o polling em alto volume, mas exige Kafka Connect e logical replication: ver ADR-017, mantido como evolução). `@TransactionalEventListener` (perde eventos se o processo cair).
+
+### ADR-005: Consumidores idempotentes com tabela `processed_events`
+
+- **Decisão:** Cada consumidor insere o `eventId` em `processed_events` na mesma transação do efeito. Conflito significa duplicata e o evento é ignorado.
+- **Consequências:** O efeito ocorre uma vez mesmo com reentrega. Uma escrita extra por evento.
+- **Alternativas:** Confiar em exactly-once do Kafka (não cobre o efeito no banco do consumidor).
+
+### ADR-006: Saga coreografada com compensação
+
+- **Contexto:** Um pedido cruza catalog (estoque) e order (pagamento) sem transação distribuída.
+- **Decisão:** Coreografia por eventos. O `order-service` guarda o estado do pedido e reage a `StockReserved` e `StockRejected`. Falha de pagamento publica `OrderCancelled`, que libera o estoque (compensação). Um sweeper cancela pedidos parados.
+- **Consequências:** Sem ponto central e sem 2PC. O fluxo fica distribuído, então a documentação (diagramas 6.13 e 6.14) é essencial.
+- **Alternativas:** Orquestrador central (mais fácil de enxergar, cria um serviço a mais). 2PC/XA (indisponibilidade acoplada, não suportado por Kafka).
+
+### ADR-007: API Gateway com Spring Cloud Gateway e defesa em profundidade
+
+- **Decisão:** Ponto único de entrada que valida o JWT, remove headers `X-User-*` externos, injeta os claims e roteia. Os serviços **revalidam** o JWT.
+- **Consequências:** Preocupações transversais (CORS, correlation-id, futuro rate limit) em um só lugar sem que os serviços confiem cegamente no gateway.
+- **Alternativas:** Kong (ver ADR-019) ou NGINX (mais recursos prontos, menos alinhado à stack Java). Sem gateway (o frontend conheceria todos os serviços).
+
+### ADR-008: JWT RS256 com JWKS e refresh token com rotação
+
+- **Decisão:** O identity-service assina com chave privada (RS256) e publica as chaves públicas em JWKS com `kid`. Access token de 15 minutos. Refresh token opaco, guardado como hash, rotacionado a cada uso, com detecção de reuso que revoga a família.
+- **Consequências:** Os demais serviços validam sem conhecer segredo. Rotação de chaves sem downtime. Um access token não é revogável antes de expirar (por isso a validade curta).
+- **Alternativas:** HS256 com segredo compartilhado (todo serviço poderia forjar tokens). Sessão em servidor (estado compartilhado).
+
+### ADR-009: Redis apenas como cache de leitura (cache-aside)
+
+- **Decisão:** Cache de categorias e produtos com TTL e jitter, invalidado na escrita. Nenhum dado exclusivo do Redis: se ele cair, o serviço lê do PostgreSQL.
+- **Consequências:** Ganho de latência em leituras frequentes com risco baixo. Possível leitura desatualizada por até o TTL em corridas de invalidação.
+- **Alternativas:** Cache em memória do processo (inconsistente entre instâncias). Write-through (mais acoplamento).
+
+### ADR-010: Auditoria na mesma transação da alteração
+
+- **Decisão:** O `AuditService` grava `audit_log` com ator, entidade, diff antes e depois (JSONB), `requestId` e horário, na transação do `UPDATE`. No order-service o equivalente é `order_status_history`.
+- **Consequências:** Não existe alteração sem rastro. Aumenta o volume de escrita e a tabela deve ser particionada por data em escala.
+- **Alternativas:** Auditoria por evento assíncrono (pode perder registro). Hibernate Envers (bom, porém menos flexível para o formato de diff).
+
+### ADR-011: Webhooks assinados, com retry e histórico
+
+- **Decisão:** Entrega via tabela `webhook_deliveries` processada por dispatcher (`SKIP LOCKED`). Assinatura HMAC-SHA256 com timestamp, 5 tentativas com backoff, estado `DEAD` e reenvio manual.
+- **Consequências:** O parceiro consegue autenticar a origem, evitar replay e deduplicar. Falha do parceiro nunca afeta o restante do sistema.
+- **Alternativas:** Chamada HTTP direta dentro do consumidor (bloqueia o consumo e perde entregas).
+
+### ADR-012: Cotação síncrona de preços do catálogo no checkout
+
+- **Contexto:** O preço deve ser autoritativo e o cliente nunca é confiável.
+- **Decisão:** O `order-service` chama `POST /internal/catalog/quote` (timeout de 2 s) e copia preço e nome para `order_items`.
+- **Consequências:** Preço correto no momento da compra. Existe acoplamento temporal com o catálogo: o checkout retorna 503 se ele cair (ponto onde o Circuit Breaker planejado se encaixa).
+- **Alternativas:** Réplica local de preços por eventos (resiliente, mas com risco de preço desatualizado e mais complexidade).
+
+### ADR-013: Checkout assíncrono (202) com polling
+
+- **Decisão:** `POST /orders/checkout` responde `202 Accepted` com o `orderId`. O frontend consulta o status a cada 2 s até um estado final.
+- **Consequências:** O cliente recebe resposta rápida e o sistema absorve picos. A UI precisa tratar estados intermediários.
+- **Alternativas:** Resposta síncrona (acopla latência a todo o fluxo). WebSocket ou SSE (evolução possível, sem necessidade hoje).
+
+### ADR-014: Carrinho persistido no PostgreSQL
+
+- **Decisão:** O carrinho fica em `order_db`, com produto e quantidade (sem preço).
+- **Consequências:** Sobrevive à queda do Redis e a reinícios. Um pouco mais lento que memória, mas irrelevante nesta escala.
+- **Alternativas:** Carrinho no Redis (perder o carrinho ao perder o cache é ruim para o usuário).
+
+### ADR-015: Contrato de eventos versionado em envelope JSON
+
+- **Decisão:** Envelope comum (`eventId`, `eventType`, `eventVersion`, `correlationId`, `causationId`, `payload`) em `libs/event-contracts`. Mudanças compatíveis só adicionam campos.
+- **Consequências:** Evolução independente de produtores e consumidores. Sem Schema Registry, a disciplina depende de testes de contrato.
+- **Alternativas:** Avro ou Protobuf com Schema Registry (melhor em escala, mais infraestrutura: evolução planejada).
+
+### ADR-016: Itens de escopo documentados e não implementados
+
+- **Decisão:** Observabilidade, segurança avançada, idempotência de checkout, Circuit Breaker, CDC com Debezium, busca com OpenSearch e Kong como alternativa de gateway ficam projetados na seção 11, com diagramas e pontos exatos de integração.
+- **Consequências:** O portfólio demonstra visão sistêmica sem inflar a entrega. Cada item está marcado como 🔵 em todos os documentos para não haver falsa expectativa.
+
+### ADR-017: Debezium (CDC) como perfil opcional
+
+- **Contexto:** Projeções de leitura e busca precisam refletir o catálogo sem que o `catalog-service` escreva em vários destinos (dual write).
+- **Decisão:** Kafka Connect com o conector Debezium PostgreSQL captura o log de transações de `catalog_db` (logical replication, `wal_level=logical`) e publica em tópicos de CDC separados dos tópicos de domínio. Perfil `cdc` do Compose. O CDC **não substitui** a Outbox, que continua sendo o mecanismo dos eventos de domínio.
+- **Consequências:** Permite reindexação por snapshot sem alterar o código do catálogo. Expõe o modelo interno das tabelas a quem consome o CDC, então o indexador precisa traduzi-lo. O slot de replicação retém WAL se o conector parar, e isso precisa ser monitorado.
+- **Alternativas:** Publicar eventos de domínio do produto pela própria Outbox e fazer o indexador consumi-los (mais simples e sem componente novo. O Debezium foi preferido também para permitir reindexação por snapshot e para demonstrar CDC). Dual write para o índice (inseguro).
+
+### ADR-018: OpenSearch opcional para busca inteligente
+
+- **Contexto:** A busca por nome no PostgreSQL atende a versão 1.0, mas não oferece tolerância a erros de digitação, autocomplete nem relevância.
+- **Decisão:** OpenSearch (licença Apache 2.0) no perfil `search`, alimentado pelo `search-indexer` a partir do CDC. A busca básica no PostgreSQL (`ILIKE` ou `pg_trgm`) continua sendo o padrão e o fallback. O PostgreSQL é a fonte de verdade e o índice pode ser reconstruído por reindexação completa.
+- **Consequências:** Consistência eventual e mais infraestrutura (memória). Só entra na Fase 11.
+- **Alternativas:** Elasticsearch (não adotado: o OpenSearch atende ao requisito com licença Apache 2.0, e a troca exigiria ajustar só o indexador e as consultas). Apenas PostgreSQL com `pg_trgm` ou full-text (suficiente para a 1.0, limitado em relevância).
+
+### ADR-019: Spring Cloud Gateway mantido e Kong como alternativa documentada
+
+- **Contexto:** Kong oferece plugins prontos (rate limiting, métricas, correlation-id) e é comum em ambientes corporativos.
+- **Decisão:** Manter o Spring Cloud Gateway, que compartilha a stack Java dos serviços e é testado junto com eles. Kong fica documentado como alternativa que **substituiria** o gateway atual. Nunca dois gateways ao mesmo tempo no ambiente principal. A autorização por ownership permanece nos serviços.
+- **Consequências:** Uma troca exigiria reimplementar como plugins a validação de JWT via JWKS, a propagação de claims e o correlation-id (ver 11.6). A licença da versão do Kong deve ser conferida antes de adotar.
+- **Alternativas:** Kong desde já (mais recursos prontos, uma tecnologia a mais fora do ecossistema Java). NGINX puro (sem plugins de autenticação).
+
+### ADR-020: Arquitetura interna hexagonal (Ports and Adapters)
+
+- **Contexto:** As regras de negócio (saga, estoque, máquina de estados) precisam ser testáveis sem Spring, Kafka ou banco.
+- **Decisão:** Cada serviço tem `domain` (modelo, serviços de domínio e exceções), `application` (ports `in` e `out` e casos de uso), `adapter` (`in`: web e messaging. `out`: persistence, messaging e client) e `config`. O domínio não depende de frameworks e os adapters dependem dos ports. As regras são verificadas por ArchUnit.
+- **Consequências:** Mais interfaces e mapeamentos, em troca de testes rápidos de domínio e de infraestrutura substituível sem afetar as regras.
+- **Alternativas:** Camadas tradicionais controller, service e repository (menos cerimônia, mas acoplamento maior com JPA e Spring).
+
+---
+
+## 13. Estratégia de testes
+
+```mermaid
+flowchart TB
+    subgraph piramide["Pirâmide de testes"]
+        e2e["E2E e smoke (poucos)<br/>Compose completo + cenário de compra"]
+        integ["Integração (moderados)<br/>Testcontainers: PostgreSQL, Kafka, Redis"]
+        unit["Unitários e arquitetura (muitos)<br/>JUnit 5, ArchUnit, Mockito"]
+        e2e --- integ --- unit
+    end
+```
+
+| Risco                              | Teste                                                                                                                                  |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Venda simultânea da última unidade | 10 reservas concorrentes com estoque 1: 1 `StockReserved`, 9 `StockRejected`, estoque final 0                                          |
+| Kafka fora do ar                   | Derruba o container, faz checkout, confirma evento `PENDING` e publicação após a volta                                                 |
+| Evento duplicado                   | Publica o mesmo `eventId` duas vezes e verifica um único efeito                                                                        |
+| Dois relays simultâneos            | Duas instâncias do relay sobre a mesma Outbox sem publicação duplicada por linha                                                       |
+| Compensação                        | Pagamento `REJECT` devolve o estoque ao valor original                                                                                 |
+| Mensagem envenenada                | JSON inválido termina na DLT sem bloquear a partição                                                                                   |
+| Máquina de estados                 | Todas as transições inválidas lançam exceção                                                                                           |
+| Ownership (IDOR)                   | Cliente A não lê pedido do cliente B (404)                                                                                             |
+| Cache                              | Miss, hit, invalidação após alterar preço e comportamento com Redis fora                                                               |
+| Webhook                            | Assinatura válida, retry com backoff, `DEAD` e reenvio                                                                                 |
+| Auditoria                          | Alterar preço gera exatamente um registro com diff correto                                                                             |
+| Regras de arquitetura              | ArchUnit: `domain` não depende de frameworks nem de `adapter`, os adapters dependem dos ports e nenhum serviço importa código de outro |
+| Atraso e recuperação do CDC (🔵)   | Para o indexador, altera produtos, religa e confirma que o índice converge                                                             |
+| Reindexação completa (🔵)          | O novo índice fica equivalente ao catálogo e o alias é trocado sem indisponibilidade                                                   |
+| Fallback da busca (🔵)             | Com o OpenSearch parado, `GET /api/catalog/products?q=` continua respondendo pelo PostgreSQL                                           |

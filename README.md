@@ -6,7 +6,7 @@
 
 O ShopFlow é um e-commerce fictício. O valor do projeto está menos nas telas e mais em **como o sistema se comporta quando as coisas dão errado**: Kafka fora do ar, mensagem duplicada, duas pessoas comprando a última unidade, pagamento recusado depois da reserva de estoque.
 
-O projeto mostra tanto o que **foi implementado** quanto o que foi **apenas projetado** (observabilidade, segurança avançada, idempotência de checkout, resiliência), sempre com a diferença explícita:
+O projeto mostra tanto o que **foi implementado** quanto o que foi **apenas projetado** (observabilidade, segurança avançada, idempotência de checkout, resiliência, CDC com Debezium e busca inteligente), sempre com a diferença explícita:
 
 | Marca | Significado                         |
 | ----- | ----------------------------------- |
@@ -49,7 +49,18 @@ flowchart TB
 
     notif --> smtp["SMTP"]
     notif -->|"webhook assinado"| partner["Sistema parceiro"]
+
+    dbcat -.->|"logical replication"| dbz["Debezium<br/>opcional"]
+    dbz -.-> kafka
+    kafka -.-> idx["search-indexer<br/>opcional"]
+    idx -.-> os[("OpenSearch<br/>opcional")]
+    cat -.->|"busca fuzzy, com fallback ao PostgreSQL"| os
+
+    classDef opt stroke-dasharray: 5 5
+    class dbz,idx,os opt
 ```
+
+Os componentes tracejados são opcionais (Fase 11). O Kong é apenas uma alternativa documentada ao Spring Cloud Gateway e não aparece no diagrama.
 
 Mais detalhes em [ARCHITECTURE.md](docs/ARCHITECTURE.md): C4 completo (contexto, contêineres e componentes).
 
@@ -100,49 +111,52 @@ stateDiagram-v2
 
 ## Padrões demonstrados
 
-| Problema                                   | Solução                                              | Onde ver                       |
-| ------------------------------------------ | ---------------------------------------------------- | ------------------------------ |
-| Pedido salvo e evento perdido (dual write) | 🟢 Transactional Outbox                              | ARCHITECTURE 4.1, 6.7, ADR-004 |
-| Mensagem entregue mais de uma vez          | 🟢 Consumidor idempotente                            | 6.14c, ADR-005                 |
-| Duas pessoas comprando a última unidade    | 🟢 `UPDATE` condicional atômico e `CHECK`            | 6.8                            |
-| Falha no meio de um processo distribuído   | 🟢 Saga coreografada com compensação                 | 6.9, 6.14d, ADR-006            |
-| Kafka fora do ar                           | 🟢 Eventos ficam `PENDING` e são publicados depois   | 6.14a                          |
-| Mensagem que nunca é processada            | 🟢 Retry com backoff e Dead Letter Topic             | 6.14b                          |
-| Leituras frequentes do catálogo            | 🟢 Cache-aside com Redis                             | 6.3, ADR-009                   |
-| Quem alterou o quê e quando                | 🟢 Auditoria na mesma transação                      | 6.4, ADR-010                   |
-| Integração com sistema externo             | 🟢 Webhooks assinados com retry                      | 6.12, ADR-011                  |
-| Ponto único de entrada                     | 🟢 API Gateway com JWT RS256 e JWKS                  | 4.5, 6.2, ADR-007              |
-| Observabilidade                            | 🔵 OpenTelemetry, Prometheus, Grafana, Loki          | 11.1                           |
-| Abuso e força bruta                        | 🔵 Rate limiting, blacklist de IPs, Blind Login, 2FA | 11.2                           |
-| Cobrança ou pedido duplicados em retry     | 🔵 Idempotency-Key                                   | 11.3                           |
-| Falha em cascata                           | 🔵 Circuit Breaker, Bulkhead, retry                  | 11.4                           |
-| Busca inteligente                          | 🔵 OpenSearch, indexação assíncrona via Debezium     |
+| Problema                                   | Solução                                                                 | Onde ver                       |
+| ------------------------------------------ | ----------------------------------------------------------------------- | ------------------------------ |
+| Pedido salvo e evento perdido (dual write) | 🟢 Transactional Outbox                                                 | ARCHITECTURE 4.1, 6.7, ADR-004 |
+| Mensagem entregue mais de uma vez          | 🟢 Consumidor idempotente                                               | 6.14c, ADR-005                 |
+| Duas pessoas comprando a última unidade    | 🟢 `UPDATE` condicional atômico e `CHECK`                               | 6.8                            |
+| Falha no meio de um processo distribuído   | 🟢 Saga coreografada com compensação                                    | 6.9, 6.14d, ADR-006            |
+| Kafka fora do ar                           | 🟢 Eventos ficam `PENDING` e são publicados depois                      | 6.14a                          |
+| Mensagem que nunca é processada            | 🟢 Retry com backoff e Dead Letter Topic                                | 6.14b                          |
+| Leituras frequentes do catálogo            | 🟢 Cache-aside com Redis                                                | 6.3, ADR-009                   |
+| Quem alterou o quê e quando                | 🟢 Auditoria na mesma transação                                         | 6.4, ADR-010                   |
+| Integração com sistema externo             | 🟢 Webhooks assinados com retry                                         | 6.12, ADR-011                  |
+| Ponto único de entrada                     | 🟢 API Gateway com JWT RS256 e JWKS                                     | 4.5, 6.2, ADR-007              |
+| Observabilidade                            | 🔵 OpenTelemetry, Prometheus, Grafana, Loki                             | 11.1                           |
+| Abuso e força bruta                        | 🔵 Rate limiting, blacklist de IPs, Blind Login, 2FA                    | 11.2                           |
+| Cobrança ou pedido duplicados em retry     | 🔵 Idempotency-Key                                                      | 11.3                           |
+| Falha em cascata                           | 🔵 Circuit Breaker, Bulkhead, retry                                     | 11.4                           |
+| Busca inteligente sem acoplar o catálogo   | 🔵 OpenSearch alimentado por CDC (Debezium), com fallback ao PostgreSQL | 11.5, ADR-017, ADR-018         |
+| Troca do gateway                           | 🔵 Kong como alternativa ao Spring Cloud Gateway                        | 11.6, ADR-019                  |
 
-Serviços opcionais:
+### Ferramentas de desenvolvimento e perfis opcionais
 
-| Serviço                  | Inicialização      | Uso                                    |
-| ------------------------ | ------------------ | -------------------------------------- |
-| Kafka Connect + Debezium | `--profile cdc`    | Captura alterações do PostgreSQL       |
-| OpenSearch               | `--profile search` | Busca fuzzy, autocomplete e relevância |
-| Kafka UI                 | Sempre ativo       | Inspeção de tópicos e DLT              |
-| MailHog                  | Sempre ativo       | Inspeção de e-mails                    |
-| WireMock                 | Sempre ativo       | Simulação do parceiro de webhook       |
+| Serviço                  | Inicialização      | Porta | Uso                                    | Status     |
+| ------------------------ | ------------------ | ----- | -------------------------------------- | ---------- |
+| Kafka UI                 | Sempre ativo       | 8090  | Inspeção de tópicos e DLT              | 🟢         |
+| MailHog                  | Sempre ativo       | 8025  | Inspeção de e-mails                    | 🟢         |
+| WireMock                 | Sempre ativo       | 8089  | Simulação do parceiro de webhook       | 🟢         |
+| Kafka Connect + Debezium | `--profile cdc`    | 8085  | Captura alterações do PostgreSQL       | 🔵 Fase 11 |
+| OpenSearch               | `--profile search` | 9200  | Busca fuzzy, autocomplete e relevância | 🔵 Fase 11 |
 
-Para desenvolvimento básico, PostgreSQL continua sendo suficiente. OpenSearch só será usado quando a busca inteligente entrar no roadmap.
+Na versão 1.0, a busca por nome usa o PostgreSQL (`ILIKE` ou `pg_trgm`). O OpenSearch só entra na Fase 11 e, mesmo depois dela, o PostgreSQL continua sendo a fonte de verdade e o fallback da busca.
+
+O Kong é uma alternativa documentada ao Spring Cloud Gateway ([ADR-019](docs/ARCHITECTURE.md#adr-019-spring-cloud-gateway-mantido-e-kong-como-alternativa-documentada)). Os dois nunca rodam juntos.
 
 ## Stack tecnológica
 
-| Camada                         | Tecnologia                                                                                                     |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| Backend                        | Java 21, Spring Boot 3, Spring Cloud Gateway, Spring Security (Resource Server), Spring Data JPA, Spring Kafka |
-| Banco de dados                 | PostgreSQL 16 (um banco lógico por serviço), Flyway                                                            |
-| Cache                          | Redis 7                                                                                                        |
-| Mensageria                     | Apache Kafka (KRaft)                                                                                           |
-| Frontend                       | React, TypeScript, Vite, TanStack Query, servido por Nginx                                                     |
-| Testes                         | JUnit 5, Testcontainers, ArchUnit, Awaitility, Vitest, k6 (carga leve)                                         |
-| Infraestrutura                 | Docker, Docker Compose, GitHub Actions                                                                         |
-| Ferramentas de desenvolvimento | Kafka UI, MailHog (SMTP), WireMock (parceiro de webhook)                                                       |
-| Planejado 🔵                   | OpenTelemetry, Prometheus, Grafana, Loki, Tempo, Resilience4j, Bucket4j                                        |
+| Camada                         | Tecnologia                                                                                                                                      |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend                        | Java 21, Spring Boot 3, Spring Cloud Gateway, Spring Security (Resource Server), Spring Data JPA, Spring Kafka                                  |
+| Banco de dados                 | PostgreSQL 16 (um banco lógico por serviço), Flyway                                                                                             |
+| Cache                          | Redis 7                                                                                                                                         |
+| Mensageria                     | Apache Kafka (KRaft)                                                                                                                            |
+| Frontend                       | React, TypeScript, Vite, TanStack Query, servido por Nginx                                                                                      |
+| Testes                         | JUnit 5, Testcontainers, ArchUnit, Awaitility, Vitest, k6 (carga leve)                                                                          |
+| Infraestrutura                 | Docker, Docker Compose, GitHub Actions                                                                                                          |
+| Ferramentas de desenvolvimento | Kafka UI, MailHog (SMTP), WireMock (parceiro de webhook)                                                                                        |
+| Planejado 🔵                   | OpenTelemetry, Prometheus, Grafana, Loki, Tempo, Resilience4j, Bucket4j, Kafka Connect + Debezium, OpenSearch. Kong como alternativa de gateway |
 
 ## Como rodar
 
@@ -156,6 +170,12 @@ cd shopflow
 docker compose -f infra/docker-compose.yml up -d --build
 ```
 
+Componentes opcionais (Fase 11):
+
+```bash
+docker compose -f infra/docker-compose.yml --profile cdc --profile search up -d
+```
+
 Depois de alguns instantes, todos os serviços ficam saudáveis:
 
 | Recurso                        | URL                                             |
@@ -166,6 +186,8 @@ Depois de alguns instantes, todos os serviços ficam saudáveis:
 | Kafka UI                       | http://localhost:8090                           |
 | MailHog (e-mails)              | http://localhost:8025                           |
 | WireMock (parceiro de webhook) | http://localhost:8089                           |
+| Kafka Connect (perfil `cdc`)   | http://localhost:8085                           |
+| OpenSearch (perfil `search`)   | http://localhost:9200                           |
 
 Usuários de demonstração (apenas para ambiente local):
 
@@ -198,15 +220,18 @@ shopflow/
 │   ├── identity-service/       # usuários, login, JWT, JWKS
 │   ├── catalog-service/        # categorias, produtos, estoque, auditoria, cache
 │   ├── order-service/          # carrinho, checkout, saga, pagamento e entrega simulados
-│   └── notification-service/   # e-mails e webhooks
+│   ├── notification-service/   # e-mails e webhooks
+│   └── search-indexer/         # 🔵 opcional (Fase 11): CDC para OpenSearch
 ├── libs/
 │   ├── event-contracts/        # envelope e tipos de evento compartilhados
 │   └── outbox-starter/         # Outbox, relay e IdempotencyGuard reutilizáveis
 ├── frontend/                   # React + TypeScript (loja e painel admin)
 ├── infra/
-│   ├── docker-compose.yml
+│   ├── docker-compose.yml      # perfis: padrão, cdc e search
 │   ├── postgres/               # scripts de criação dos bancos
 │   ├── kafka/                  # criação de tópicos e DLTs
+│   ├── debezium/               # 🔵 configuração do conector (perfil cdc)
+│   ├── opensearch/             # 🔵 mapeamento do índice (perfil search)
 │   ├── nginx/
 │   └── wiremock/               # stubs do parceiro de webhook
 ├── docs/
@@ -214,10 +239,7 @@ shopflow/
 │   ├── REQUIREMENTS.md
 │   ├── IMPLEMENTATION.md
 │   └── adr/                    # ADRs em arquivos individuais (opcional)
-├── README.md
-├── ARCHITECTURE.md
-├── REQUIREMENTS.md
-└── IMPLEMENTATION.md
+└── README.md
 ```
 
 Estrutura interna de cada microsserviço:
@@ -244,9 +266,7 @@ Estrutura interna de cada microsserviço:
 └── config/
 ```
 
-A regra de dependência segue Ports and Adapters: o domínio não conhece
-frameworks ou infraestrutura; adapters dependem de ports; e a aplicação
-orquestra os casos de uso.
+A regra de dependência segue Ports and Adapters (ADR-020): o domínio não conhece frameworks nem infraestrutura, os adapters dependem dos ports e a aplicação orquestra os casos de uso. A regra é verificada por ArchUnit.
 
 ## Convenções
 
@@ -258,4 +278,4 @@ orquestra os casos de uso.
 
 ## Licença
 
-MIT
+[Licença MIT](LICENSE)
