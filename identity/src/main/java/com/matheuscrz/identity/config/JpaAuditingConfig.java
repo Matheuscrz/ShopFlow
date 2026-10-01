@@ -1,9 +1,9 @@
-package com.matheuscrz.identity.infrastructure.config;
+package com.matheuscrz.identity.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 @Configuration
-@EnableJpaAuditing(auditorAwareRef = "auditorAware", modifyOnCreate = true)
+@EnableJpaAuditing
 public class JpaAuditingConfig {
 }

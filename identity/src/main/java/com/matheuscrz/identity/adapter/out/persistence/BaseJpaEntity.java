@@ -1,4 +1,4 @@
-package com.matheuscrz.identity.domain.model.abstractclass;
+package com.matheuscrz.identity.adapter.out.persistence;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -22,7 +22,7 @@ import lombok.Setter;
 @Setter
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
-public abstract class BaseEntity {
+public abstract class BaseJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -44,4 +44,12 @@ public abstract class BaseEntity {
     @LastModifiedBy
     @Column(length = 100)
     private String lastModifiedBy;
+
+    protected BaseJpaEntity() {
+    }
+
+    protected BaseJpaEntity(UUID id, Instant createdAt) {
+        this.id = id;
+        this.createdAt = createdAt;
+    }
 }

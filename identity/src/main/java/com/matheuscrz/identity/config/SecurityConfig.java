@@ -1,4 +1,4 @@
-package com.matheuscrz.identity.infrastructure.config;
+package com.matheuscrz.identity.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

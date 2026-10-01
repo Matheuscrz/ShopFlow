@@ -1,22 +1,25 @@
 spring:
+  config:
+    import: optional:file:.env[.properties]
+
   application:
-    name: indetity
+    name: identity
 
   threads:
     virtual:
       enabled: true
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/shopflow_identity}
-    username: ${DB_USERNAME:shopflow_admin}
-    password: ${DB_PASSWORD:shopflow_admin_password}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   flyway:
     enabled: true
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/shopflow_identity}
-    user: ${DB_USERNAME:shopflow_admin}
-    password: ${DB_PASSWORD:shopflow_admin_password}
+    url: ${DB_URL}
+    user: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     baseline-on-migrate: true
     locations: classpath:db/migration
 
@@ -28,10 +31,6 @@ spring:
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: all
 
 server:
   port: 8080
