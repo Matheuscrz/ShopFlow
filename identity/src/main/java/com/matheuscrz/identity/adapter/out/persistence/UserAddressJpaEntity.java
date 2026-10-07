@@ -10,6 +10,8 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.matheuscrz.identity.domain.model.UserAddress;
+
 @Entity
 @Table(name = "user_addresses")
 public class UserAddressJpaEntity extends BaseJpaEntity {
@@ -49,7 +51,7 @@ public class UserAddressJpaEntity extends BaseJpaEntity {
             String street, String number, String complement,
             String neighborhood, String city, String state,
             String country, Instant createdAt) {
-        super(id, createdAt);
+        super(id);
         this.user = user;
         this.zipCode = zipCode;
         this.street = street;
@@ -95,5 +97,16 @@ public class UserAddressJpaEntity extends BaseJpaEntity {
 
     String getCountry() {
         return country;
+    }
+
+    void applyChanges(UserAddress address) {
+        this.zipCode = address.zipCode();
+        this.street = address.street();
+        this.number = address.number();
+        this.complement = address.complement();
+        this.neighborhood = address.neighborhood();
+        this.city = address.city();
+        this.state = address.state();
+        this.country = address.country();
     }
 }

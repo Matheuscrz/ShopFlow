@@ -1,5 +1,6 @@
 package com.matheuscrz.identity.adapter.out.persistence;
 
+import com.matheuscrz.identity.domain.model.RefreshToken;
 import com.matheuscrz.identity.domain.model.RefreshTokenStatus;
 
 import jakarta.persistence.Column;
@@ -41,7 +42,7 @@ public class RefreshTokenJpaEntity extends BaseJpaEntity {
             UUID familyId, RefreshTokenStatus status,
             Instant expiresAt, UUID replacedBy,
             Instant createdAt) {
-        super(id, createdAt);
+        super(id);
         this.userId = userId;
         this.tokenHash = tokenHash;
         this.familyId = familyId;
@@ -72,5 +73,10 @@ public class RefreshTokenJpaEntity extends BaseJpaEntity {
 
     UUID getReplacedBy() {
         return replacedBy;
+    }
+
+    void applyChanges(RefreshToken token) {
+        this.status = token.status();
+        this.replacedBy = token.replacedBy();
     }
 }

@@ -1,6 +1,7 @@
 package com.matheuscrz.identity.adapter.out.persistence;
 
 import com.matheuscrz.identity.domain.model.Role;
+import com.matheuscrz.identity.domain.model.User;
 import com.matheuscrz.identity.domain.model.UserStatus;
 
 import jakarta.persistence.Column;
@@ -9,7 +10,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 
-import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -37,8 +37,8 @@ public class UserJpaEntity extends BaseJpaEntity {
     }
 
     UserJpaEntity(UUID id, String email, String passwordHash, String name,
-            Role role, UserStatus status, Instant createdAt) {
-        super(id, createdAt);
+            Role role, UserStatus status) {
+        super(id);
         this.email = email;
         this.passwordHash = passwordHash;
         this.name = name;
@@ -64,5 +64,12 @@ public class UserJpaEntity extends BaseJpaEntity {
 
     UserStatus getStatus() {
         return status;
+    }
+
+    void applyChanges(User user) {
+        this.name = user.name();
+        this.passwordHash = user.passwordHash();
+        this.role = user.role();
+        this.status = user.status();
     }
 }

@@ -11,21 +11,17 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
+import jakarta.persistence.Version;
 import lombok.Getter;
-import lombok.Setter;
 
 @Getter
-@Setter
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
 public abstract class BaseJpaEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(nullable = false, updatable = false)
     private UUID id;
 
@@ -45,11 +41,14 @@ public abstract class BaseJpaEntity {
     @Column(length = 100)
     private String lastModifiedBy;
 
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
     protected BaseJpaEntity() {
     }
 
-    protected BaseJpaEntity(UUID id, Instant createdAt) {
+    protected BaseJpaEntity(UUID id) {
         this.id = id;
-        this.createdAt = createdAt;
     }
 }

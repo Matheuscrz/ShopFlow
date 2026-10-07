@@ -26,7 +26,6 @@ public final class UserPersistenceMapper {
                 user.passwordHash(),
                 user.name(),
                 user.role(),
-                user.status(),
-                user.createdAt());
+                user.status());
     }
 }
