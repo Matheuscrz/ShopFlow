@@ -3,6 +3,10 @@ package com.matheuscrz.identity.application.service;
 import com.matheuscrz.identity.application.port.in.ManageUserUseCase;
 import com.matheuscrz.identity.application.port.out.PasswordSecurityPort;
 import com.matheuscrz.identity.application.port.out.UserRepositoryPort;
+import com.matheuscrz.identity.application.port.out.UserNotificationEventPort;
+import com.matheuscrz.identity.domain.event.PasswordChangedEvent;
+import com.matheuscrz.identity.domain.event.UserRegisteredEvent;
+import com.matheuscrz.identity.domain.event.UserUpdatedEvent;
 import com.matheuscrz.identity.domain.exception.EmailAlreadyExistsException;
 import com.matheuscrz.identity.domain.exception.InvalidCredentialsException;
 import com.matheuscrz.identity.domain.exception.InvalidUserDataException;
@@ -19,14 +23,17 @@ public class UserApplicationService implements ManageUserUseCase {
 
     private final UserRepositoryPort userRepository;
     private final PasswordSecurityPort passwordSecurity;
+    private final UserNotificationEventPort notificationEventPort;
     private final Clock clock;
 
     public UserApplicationService(
             UserRepositoryPort userRepository,
             PasswordSecurityPort passwordSecurity,
+            UserNotificationEventPort notificationEventPort,
             Clock clock) {
         this.userRepository = userRepository;
         this.passwordSecurity = passwordSecurity;
+        this.notificationEventPort = notificationEventPort;
         this.clock = clock;
     }
 
@@ -49,7 +56,15 @@ public class UserApplicationService implements ManageUserUseCase {
                 passwordHash,
                 normalizedName,
                 clock.instant());
-        return userRepository.save(newUser);
+        User savedUser = userRepository.save(newUser);
+
+        notificationEventPort.publishUserRegistered(
+                UserRegisteredEvent.of(
+                        savedUser.id(),
+                        savedUser.email().value(),
+                        savedUser.name()));
+
+        return savedUser;
     }
 
     @Override
@@ -66,6 +81,12 @@ public class UserApplicationService implements ManageUserUseCase {
         String newPasswordHash = passwordSecurity.encode(newPassword);
         user.changePasswordHash(newPasswordHash);
         userRepository.save(user);
+
+        notificationEventPort.publishPasswordChanged(
+                PasswordChangedEvent.of(
+                        user.id(),
+                        user.email().value(),
+                        clock.instant()));
     }
 
     @Override
@@ -77,7 +98,16 @@ public class UserApplicationService implements ManageUserUseCase {
             user.rename(UserInputNormalizer.name(command.name()));
         }
 
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        notificationEventPort.publishUserUpdated(
+                UserUpdatedEvent.of(
+                        savedUser.id(),
+                        savedUser.email().value(),
+                        savedUser.name(),
+                        clock.instant()));
+
+        return savedUser;
     }
 
     @Override

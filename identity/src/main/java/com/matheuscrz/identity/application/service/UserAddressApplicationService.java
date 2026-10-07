@@ -2,7 +2,9 @@ package com.matheuscrz.identity.application.service;
 
 import com.matheuscrz.identity.application.port.in.ManageUserAddressUseCase;
 import com.matheuscrz.identity.application.port.out.UserAddressRepositoryPort;
+import com.matheuscrz.identity.application.port.out.UserNotificationEventPort;
 import com.matheuscrz.identity.application.port.out.UserRepositoryPort;
+import com.matheuscrz.identity.domain.event.UserAddressChangedEvent;
 import com.matheuscrz.identity.domain.exception.InvalidUserDataException;
 import com.matheuscrz.identity.domain.model.UserAddress;
 import org.springframework.stereotype.Service;
@@ -17,14 +19,17 @@ public class UserAddressApplicationService implements ManageUserAddressUseCase {
 
     private final UserAddressRepositoryPort addressRepository;
     private final UserRepositoryPort userRepository;
+    private final UserNotificationEventPort notificationEventPort;
     private final Clock clock;
 
     public UserAddressApplicationService(
             UserAddressRepositoryPort addressRepository,
             UserRepositoryPort userRepository,
+            UserNotificationEventPort notificationEventPort,
             Clock clock) {
         this.addressRepository = addressRepository;
         this.userRepository = userRepository;
+        this.notificationEventPort = notificationEventPort;
         this.clock = clock;
     }
 
@@ -47,7 +52,16 @@ public class UserAddressApplicationService implements ManageUserAddressUseCase {
                 UserInputNormalizer.text(cmd.country()),
                 clock.instant());
 
-        return addressRepository.save(address);
+        UserAddress savedAddress = addressRepository.save(address);
+
+        notificationEventPort.publishAddressChanged(
+                UserAddressChangedEvent.of(
+                        cmd.userId(),
+                        savedAddress.id(),
+                        "CREATED",
+                        clock.instant()));
+
+        return savedAddress;
     }
 
     @Override
@@ -68,7 +82,16 @@ public class UserAddressApplicationService implements ManageUserAddressUseCase {
                 UserInputNormalizer.text(cmd.state()),
                 UserInputNormalizer.text(cmd.country()));
 
-        return addressRepository.save(address);
+        UserAddress savedAddress = addressRepository.save(address);
+
+        notificationEventPort.publishAddressChanged(
+                UserAddressChangedEvent.of(
+                        cmd.userId(),
+                        savedAddress.id(),
+                        "UPDATED",
+                        clock.instant()));
+
+        return savedAddress;
     }
 
     @Override
@@ -81,5 +104,12 @@ public class UserAddressApplicationService implements ManageUserAddressUseCase {
     @Transactional
     public void removeAddress(UUID id, UUID userId) {
         addressRepository.deleteByIdAndUserId(id, userId);
+
+        notificationEventPort.publishAddressChanged(
+                UserAddressChangedEvent.of(
+                        userId,
+                        id,
+                        "REMOVED",
+                        clock.instant()));
     }
 }
