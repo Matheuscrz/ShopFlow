@@ -11,7 +11,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.net.URI;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -23,7 +22,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleEmailAlreadyExists(EmailAlreadyExistsException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Conflito de Registo");
-        problem.setType(URI.create("https://shopflow.dev/errors/email-already-exists"));
+        problem.setType(ErrorTypes.EMAIL_ALREADY_EXISTS);
         problem.setProperty("timestamp", Instant.now());
         return problem;
     }
@@ -32,7 +31,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleInvalidCredentials(InvalidCredentialsException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
         problem.setTitle("Falha na Autenticação");
-        problem.setType(URI.create("https://shopflow.dev/errors/invalid-credentials"));
+        problem.setType(ErrorTypes.INVALID_CREDENTIALS);
         problem.setProperty("timestamp", Instant.now());
         return problem;
     }
@@ -41,7 +40,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleInvalidRefreshToken(InvalidRefreshTokenException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
         problem.setTitle("Sessão Expirada ou Inválida");
-        problem.setType(URI.create("https://shopflow.dev/errors/invalid-refresh-token"));
+        problem.setType(ErrorTypes.INVALID_REFRESH_TOKEN);
         problem.setProperty("timestamp", Instant.now());
         return problem;
     }
@@ -50,7 +49,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleInvalidUserData(InvalidUserDataException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
         problem.setTitle("Dados Inválidos");
-        problem.setType(URI.create("https://shopflow.dev/errors/invalid-user-data"));
+        problem.setType(ErrorTypes.INVALID_USER_DATA);
         problem.setProperty("timestamp", Instant.now());
         return problem;
     }
@@ -60,7 +59,7 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Erros de validação nos campos informados.");
         problem.setTitle("Validação de Dados");
-        problem.setType(URI.create("https://shopflow.dev/errors/validation-error"));
+        problem.setType(ErrorTypes.VALIDATION_ERROR);
         problem.setProperty("timestamp", Instant.now());
 
         Map<String, String> fieldErrors = new HashMap<>();
