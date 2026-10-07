@@ -46,12 +46,13 @@ public class AuthApplicationService implements AuthenticateUserUseCase {
     @Transactional
     public AuthTokens login(LoginCommand command) {
         String normalizedEmail = UserInputNormalizer.email(command.email());
+        String sanitizedPassword = UserInputNormalizer.sanitizePassword(command.rawPassword());
         Email email = Email.of(normalizedEmail);
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(InvalidCredentialsException::new);
 
-        if (!user.canAuthenticate() || !passwordSecurity.matches(command.rawPassword(), user.passwordHash())) {
+        if (!user.canAuthenticate() || !passwordSecurity.matches(sanitizedPassword, user.passwordHash())) {
             throw new InvalidCredentialsException();
         }
 

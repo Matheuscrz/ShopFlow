@@ -35,21 +35,37 @@ public class UserApplicationService implements ManageUserUseCase {
     public User register(RegisterUserCommand command) {
         String normalizedEmail = UserInputNormalizer.email(command.email());
         String normalizedName = UserInputNormalizer.name(command.name());
+        String sanitizedPassword = UserInputNormalizer.sanitizePassword(command.rawPassword());
 
         Email email = Email.of(normalizedEmail);
         if (userRepository.existsByEmail(email)) {
             throw new EmailAlreadyExistsException(email.value());
         }
 
-        String passwordHash = passwordSecurity.encode(command.rawPassword());
+        String passwordHash = passwordSecurity.encode(sanitizedPassword);
         User newUser = User.registerCustomer(
                 UUID.randomUUID(),
                 email,
                 passwordHash,
                 normalizedName,
                 clock.instant());
-
         return userRepository.save(newUser);
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordCommand command) {
+        User user = findUserByIdOrThrow(command.userId());
+        String currentPassword = UserInputNormalizer.sanitizePassword(command.currentPassword());
+        String newPassword = UserInputNormalizer.sanitizePassword(command.newPassword());
+
+        if (!passwordSecurity.matches(currentPassword, user.passwordHash())) {
+            throw new InvalidCredentialsException();
+        }
+
+        String newPasswordHash = passwordSecurity.encode(newPassword);
+        user.changePasswordHash(newPasswordHash);
+        userRepository.save(user);
     }
 
     @Override
@@ -62,21 +78,6 @@ public class UserApplicationService implements ManageUserUseCase {
         }
 
         return userRepository.save(user);
-    }
-
-    @Override
-    @Transactional
-    public void changePassword(ChangePasswordCommand command) {
-        User user = findUserByIdOrThrow(command.userId());
-
-        if (!passwordSecurity.matches(command.currentPassword(), user.passwordHash())) {
-            throw new InvalidCredentialsException();
-        }
-
-        String newPasswordHash = passwordSecurity.encode(command.newPassword());
-        user.changePasswordHash(newPasswordHash);
-
-        userRepository.save(user);
     }
 
     @Override

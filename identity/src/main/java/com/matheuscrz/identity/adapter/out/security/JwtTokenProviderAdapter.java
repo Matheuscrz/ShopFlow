@@ -2,8 +2,12 @@ package com.matheuscrz.identity.adapter.out.security;
 
 import com.matheuscrz.identity.application.port.out.TokenProviderPort;
 import com.matheuscrz.identity.domain.model.User;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SignatureException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +22,8 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HexFormat;
+import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProviderAdapter implements TokenProviderPort {
@@ -40,12 +46,13 @@ public class JwtTokenProviderAdapter implements TokenProviderPort {
         Instant expiry = now.plus(ACCESS_TOKEN_TTL);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString()) // jti para rastreabilidade/blacklist
                 .subject(user.id().toString())
                 .claim("email", user.email().value())
                 .claim("role", user.role().name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiry))
-                .signWith(secretKey)
+                .signWith(secretKey, Jwts.SIG.HS256)
                 .compact();
     }
 
@@ -64,6 +71,28 @@ public class JwtTokenProviderAdapter implements TokenProviderPort {
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("Algoritmo de hash SHA-256 não disponível", e);
+        }
+    }
+
+    @Override
+    public Map<String, Object> validateAndExtractClaims(String token) {
+        return parseAndValidate(token);
+    }
+
+    public Claims parseAndValidate(String token) {
+        try {
+            Jws<Claims> parsed = Jwts.parser()
+                    .verifyWith(secretKey)
+                    .clock(() -> Date.from(clock.instant()))
+                    .build()
+                    .parseSignedClaims(token);
+
+            if (!"HS256".equals(parsed.getHeader().getAlgorithm())) {
+                throw new SignatureException("Algoritmo JWT não permitido");
+            }
+            return parsed.getPayload();
+        } catch (JwtException | IllegalArgumentException ex) {
+            throw new SignatureException("JWT inválido ou algoritmo não permitido", ex);
         }
     }
 }

@@ -2,6 +2,8 @@ package com.matheuscrz.identity.application.service;
 
 import java.util.Locale;
 
+import com.matheuscrz.identity.domain.exception.InvalidUserDataException;
+
 public final class UserInputNormalizer {
 
     private UserInputNormalizer() {
@@ -25,5 +27,15 @@ public final class UserInputNormalizer {
 
     private static String collapse(String value) {
         return value == null ? null : value.strip().replaceAll("\\s+", " ");
+    }
+
+    public static String sanitizePassword(String password) {
+        if (password == null) {
+            throw new InvalidUserDataException("Password cannot be null");
+        }
+        if (password.contains("\0")) {
+            throw new InvalidUserDataException("Password contains illegal characters");
+        }
+        return password;
     }
 }
