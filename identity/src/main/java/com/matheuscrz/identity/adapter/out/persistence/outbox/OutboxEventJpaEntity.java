@@ -1,5 +1,6 @@
 package com.matheuscrz.identity.adapter.out.persistence.outbox;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -10,6 +11,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "outbox_events")
@@ -30,7 +33,8 @@ public class OutboxEventJpaEntity {
     @Column(name = "event_type", nullable = false, length = 100)
     private OutboxEventType eventType;
 
-    @Column(name = "payload", nullable = false, columnDefinition = "JSONB")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
     private String payload;
 
     @Enumerated(EnumType.STRING)
@@ -65,8 +69,8 @@ public class OutboxEventJpaEntity {
         this.processedAt = processedAt;
     }
 
-    public void markPublished() {
+    public void markPublished(Clock clock) {
         this.status = OutboxEventStatus.PUBLISHED;
-        this.processedAt = Instant.now();
+        this.processedAt = Instant.now(clock);
     }
 }

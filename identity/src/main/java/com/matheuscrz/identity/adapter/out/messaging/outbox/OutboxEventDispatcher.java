@@ -16,6 +16,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.data.domain.PageRequest;
 
 import java.util.UUID;
+import java.time.Clock;
 
 @Component
 public class OutboxEventDispatcher {
@@ -24,14 +25,17 @@ public class OutboxEventDispatcher {
 
     private final SpringDataOutboxJpaRepository outboxRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final Clock clock;
     private final String topic;
 
     public OutboxEventDispatcher(
             SpringDataOutboxJpaRepository outboxRepository,
             KafkaTemplate<String, Object> kafkaTemplate,
+            Clock clock,
             @Value("${app.kafka.topics.user-events}") String topic) {
         this.outboxRepository = outboxRepository;
         this.kafkaTemplate = kafkaTemplate;
+        this.clock = clock;
         this.topic = topic;
     }
 
@@ -69,7 +73,7 @@ public class OutboxEventDispatcher {
                     if (ex != null) {
                         log.error("Falha ao entregar evento Outbox {} no Kafka", record.getId(), ex);
                     } else {
-                        record.markPublished();
+                        record.markPublished(clock);
                         outboxRepository.save(record);
                         log.info("Evento Outbox {} publicado no Kafka [offset: {}]",
                                 record.getId(), result.getRecordMetadata().offset());
