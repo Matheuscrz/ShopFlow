@@ -19,14 +19,21 @@ spring:
       ddl-auto: validate
     open-in-view: false
     show-sql: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
       retries: 3
       properties:
+        max.block.ms: 3000
         enable.idempotence: true
     consumer:
       group-id: identity-service-group
@@ -41,9 +48,14 @@ spring:
     kafka:
       topics:
         user-events: "identity.user-events"
+    jwt:
+      secret: ${JWT_SECRET}
+      cookie-secure: false
+      cookie-same-site: "Lax"
+    security:
+    rate-limit:
+      login-max-attempts: 5
+      login-window-seconds: 60
 
 server:
   port: 8080
-
-jwt:
-  secret: ${JWT_SECRET}

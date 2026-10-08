@@ -47,6 +47,12 @@ public class OutboxEventJpaEntity {
     @Column(name = "processed_at")
     private Instant processedAt;
 
+    @Column(nullable = false)
+    private int attempts;
+
+    @Column(name = "last_error")
+    private String lastError;
+
     protected OutboxEventJpaEntity() {
     }
 
@@ -67,10 +73,21 @@ public class OutboxEventJpaEntity {
         this.status = status;
         this.createdAt = createdAt;
         this.processedAt = processedAt;
+        this.attempts = 0;
     }
 
     public void markPublished(Clock clock) {
         this.status = OutboxEventStatus.PUBLISHED;
         this.processedAt = Instant.now(clock);
+        this.lastError = null;
+    }
+
+    public void registerFailure(String error) {
+        this.attempts++;
+        this.lastError = error;
+
+        if (this.attempts >= 5) {
+            this.status = OutboxEventStatus.FAILED;
+        }
     }
 }

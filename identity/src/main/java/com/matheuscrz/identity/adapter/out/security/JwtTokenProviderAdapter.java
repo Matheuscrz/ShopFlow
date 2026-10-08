@@ -34,7 +34,7 @@ public class JwtTokenProviderAdapter implements TokenProviderPort {
     private final SecureRandom secureRandom = new SecureRandom();
 
     public JwtTokenProviderAdapter(
-            @Value("${jwt.secret}") String secret,
+            @Value("${app.jwt.secret}") String secret,
             Clock clock) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.clock = clock;

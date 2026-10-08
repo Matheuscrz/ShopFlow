@@ -80,25 +80,23 @@ public class AuthApplicationService implements AuthenticateUserUseCase {
     public AuthTokens refreshToken(RefreshCommand command) {
         Instant now = clock.instant();
         String hash = tokenProvider.hashToken(command.refreshToken().strip());
-
         RefreshToken currentToken = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(InvalidRefreshTokenException::new);
 
         if (currentToken.isReuseAttempt()) {
-            refreshTokenRepository.revokeAllByFamilyId(currentToken.familyId());
+            refreshTokenRepository.revokeFamilyOnReuseDetection(currentToken.familyId());
             throw new InvalidRefreshTokenException();
         }
 
         currentToken.assertUsable(now);
-
         User user = userRepository.findById(currentToken.userId())
                 .filter(User::canAuthenticate)
                 .orElseThrow(InvalidRefreshTokenException::new);
 
         String newRawToken = tokenProvider.generateRawRefreshToken();
         String newHash = tokenProvider.hashToken(newRawToken);
-
         UUID newId = UUID.randomUUID();
+
         RefreshToken newRefreshToken = RefreshToken.issue(
                 newId,
                 user.id(),
@@ -108,7 +106,6 @@ public class AuthApplicationService implements AuthenticateUserUseCase {
                 REFRESH_TOKEN_TTL);
 
         currentToken.markUsed(newId, now);
-
         refreshTokenRepository.save(currentToken);
         refreshTokenRepository.save(newRefreshToken);
 

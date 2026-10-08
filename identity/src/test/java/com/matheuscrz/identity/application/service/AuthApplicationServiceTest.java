@@ -1,12 +1,16 @@
 package com.matheuscrz.identity.application.service;
 
+import com.matheuscrz.identity.application.port.in.AuthenticateUserUseCase;
 import com.matheuscrz.identity.application.port.in.AuthenticateUserUseCase.LoginCommand;
 import com.matheuscrz.identity.application.port.out.PasswordSecurityPort;
 import com.matheuscrz.identity.application.port.out.RefreshTokenRepositoryPort;
 import com.matheuscrz.identity.application.port.out.TokenProviderPort;
 import com.matheuscrz.identity.application.port.out.UserRepositoryPort;
 import com.matheuscrz.identity.domain.exception.InvalidCredentialsException;
+import com.matheuscrz.identity.domain.exception.InvalidRefreshTokenException;
 import com.matheuscrz.identity.domain.model.Email;
+import com.matheuscrz.identity.domain.model.RefreshToken;
+import com.matheuscrz.identity.domain.model.RefreshTokenStatus;
 import com.matheuscrz.identity.domain.model.Role;
 import com.matheuscrz.identity.domain.model.User;
 import com.matheuscrz.identity.domain.model.UserStatus;
@@ -119,5 +123,29 @@ class AuthApplicationServiceTest {
                 .isInstanceOf(InvalidCredentialsException.class);
 
         verify(tokenProvider, never()).generateAccessToken(any());
+    }
+    
+    @Test
+    @DisplayName("Deve revogar família em nova transação e lançar exceção ao detectar reúso de refresh token")
+    void shouldRevokeFamilyAndThrowOnReuseAttempt() {
+        UUID familyId = UUID.randomUUID();
+        RefreshToken usedToken = RefreshToken.restore(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "hash-usado",
+                familyId,
+                RefreshTokenStatus.USED,
+                clock.instant().plusSeconds(3600),
+                UUID.randomUUID(),
+                clock.instant().minusSeconds(3600)
+        );
+
+        when(tokenProvider.hashToken("token-reutilizado")).thenReturn("hash-usado");
+        when(refreshTokenRepository.findByTokenHash("hash-usado")).thenReturn(Optional.of(usedToken));
+
+        assertThatThrownBy(() -> authService.refreshToken(new AuthenticateUserUseCase.RefreshCommand("token-reutilizado")))
+                .isInstanceOf(InvalidRefreshTokenException.class);
+
+        verify(refreshTokenRepository, times(1)).revokeFamilyOnReuseDetection(familyId);
     }
 }

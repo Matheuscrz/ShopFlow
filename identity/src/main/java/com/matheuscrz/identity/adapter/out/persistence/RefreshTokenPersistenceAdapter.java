@@ -3,6 +3,8 @@ package com.matheuscrz.identity.adapter.out.persistence;
 import com.matheuscrz.identity.application.port.out.RefreshTokenRepositoryPort;
 import com.matheuscrz.identity.domain.model.RefreshToken;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -24,7 +26,6 @@ public class RefreshTokenPersistenceAdapter implements RefreshTokenRepositoryPor
                     return existing;
                 })
                 .orElseGet(() -> RefreshTokenPersistenceMapper.toEntity(refreshToken));
-
         return RefreshTokenPersistenceMapper.toDomain(repository.save(entity));
     }
 
@@ -35,6 +36,12 @@ public class RefreshTokenPersistenceAdapter implements RefreshTokenRepositoryPor
 
     @Override
     public void revokeAllByFamilyId(UUID familyId) {
-        repository.revokeAllByFamilyId(familyId);
+        repository.revokeActiveTokensByFamilyId(familyId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void revokeFamilyOnReuseDetection(UUID familyId) {
+        repository.revokeActiveTokensByFamilyId(familyId);
     }
 }
