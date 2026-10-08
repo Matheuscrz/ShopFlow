@@ -4,6 +4,7 @@ plugins {
     id 'io.spring.dependency-management' version '1.1.6'
 }
 
+ext['testcontainers.version'] = '2.0.5'
 group = 'com.matheuscrz'
 version = '0.0.1-SNAPSHOT'
 
@@ -18,30 +19,30 @@ repositories {
 }
 
 dependencies {
-	// Web e API
+    // Web e API
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-	// Segurança
+    // Segurança
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.security:spring-security-oauth2-jose'
 
-	// Argon2id
+    // Argon2id
     implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
 
-	// Persistência e banco de dados
+    // Persistência e banco de dados
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
 
-	// Migrações de banco de dados
+    // Migrações de banco de dados
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
-	 // Mensageria
+    // Mensageria
     implementation 'org.springframework.kafka:spring-kafka'
 
-	// Monitoramento e métricas
+    // Monitoramento e métricas
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     // Lombok
@@ -54,19 +55,30 @@ dependencies {
     // Logging
     implementation 'org.slf4j:slf4j-api'
 
-    // Testes
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.kafka:spring-kafka-test'
-
-    // Testes de arquitetura
-    testImplementation 'com.tngtech.archunit:archunit-junit5:1.3.0'
-
+    // JWT
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
-    // Redis: blacklist de JWT e rate limiting distribuído
+    // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Testes Unitários e Testes de Arquitetura
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.3.0'
+
+    // Testes de integração
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation platform('org.testcontainers:testcontainers-bom:2.0.5')
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+    testImplementation 'org.testcontainers:testcontainers-kafka'
+
+    testImplementation 'org.apache.commons:commons-compress:1.26.1'
+    testImplementation 'org.apache.commons:commons-lang3:3.14.0'
+
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {

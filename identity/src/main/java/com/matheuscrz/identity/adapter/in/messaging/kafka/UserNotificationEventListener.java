@@ -1,67 +1,93 @@
 package com.matheuscrz.identity.adapter.in.messaging.kafka;
 
-import com.matheuscrz.identity.domain.event.PasswordResetRequestedEvent;
-import com.matheuscrz.identity.domain.event.UserRegisteredEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.matheuscrz.identity.application.port.out.EventDeduplicationPort;
 import com.matheuscrz.identity.domain.event.PasswordChangedEvent;
+import com.matheuscrz.identity.domain.event.PasswordResetRequestedEvent;
 import com.matheuscrz.identity.domain.event.UserAddressChangedEvent;
+import com.matheuscrz.identity.domain.event.UserRegisteredEvent;
 import com.matheuscrz.identity.domain.event.UserUpdatedEvent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.kafka.annotation.KafkaHandler;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.Header;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+
+@Slf4j
 @Component
-@KafkaListener(id = "user-notification-consumer", topics = "${app.kafka.topics.user-events}")
+@RequiredArgsConstructor
 public class UserNotificationEventListener {
 
-    private static final Logger log = LoggerFactory.getLogger(UserNotificationEventListener.class);
+    private final EventDeduplicationPort deduplicationPort;
+    private final ObjectMapper objectMapper;
 
-    @KafkaHandler
-    public void handleUserRegistered(UserRegisteredEvent event,
-            @Header(KafkaHeaders.RECEIVED_KEY) String key) {
-        log.info("================ [SIMULAÇÃO EMAIL DE BOAS-VINDAS] ================");
-        log.info("Para: {} <{}>", event.fullName(), event.email());
-        log.info("Assunto: Bem-vindo ao ShopFlow!");
-        log.info("Corpo: Olá, {}! Seu cadastro foi concluído com sucesso. ID: {}", event.fullName(), key);
-        log.info("==================================================================");
+    @KafkaListener(
+            topics = "${app.kafka.topics.user-events}",
+            groupId = "${spring.kafka.consumer.group-id:identity-service-group}"
+    )
+    @Transactional
+    public void onMessage(ConsumerRecord<String, String> record) {
+        Header eventIdHeader = record.headers().lastHeader("eventId");
+        Header eventTypeHeader = record.headers().lastHeader("eventType");
+
+        if (eventIdHeader == null || eventTypeHeader == null) {
+            log.warn("Mensagem descartada no offset {}: headers eventId ou eventType ausentes", record.offset());
+            return;
+        }
+
+        UUID eventId;
+        try {
+            eventId = UUID.fromString(new String(eventIdHeader.value(), StandardCharsets.UTF_8));
+        } catch (IllegalArgumentException ex) {
+            log.error("Formato inválido de UUID no header eventId: {}", new String(eventIdHeader.value(), StandardCharsets.UTF_8));
+            return;
+        }
+
+        String eventType = new String(eventTypeHeader.value(), StandardCharsets.UTF_8);
+
+        // Deduplicação no banco: evita reprocessamento por at-least-once delivery
+        if (deduplicationPort.isAlreadyProcessed(eventId)) {
+            log.info("Evento [id={}, tipo={}] já foi processado anteriormente. Ignorando.", eventId, eventType);
+            return;
+        }
+
+        dispatchTypedEvent(eventType, record.value(), record.key());
+        deduplicationPort.markAsProcessed(eventId, eventType);
     }
 
-    @KafkaHandler
-    public void handlePasswordReset(PasswordResetRequestedEvent event,
-            @Header(KafkaHeaders.RECEIVED_KEY) String key) {
-        log.info("================ [SIMULAÇÃO RECUPERAÇÃO DE SENHA] ================");
-        log.info("Para: {}", event.email());
-        log.info("Assunto: Recuperação de Acesso ShopFlow");
-        log.info("Token de Redefinição: {}", event.resetToken());
-        log.info("Válido até: {}", event.expiresAt());
-        log.info("Link simulado: https://shopflow.com/reset-password?token={}", event.resetToken());
-        log.info("==================================================================");
-    }
-
-    @KafkaHandler(isDefault = true)
-    public void handleUnknown(Object unknownEvent) {
-        log.warn("Evento não reconhecido recebido no tópico: {}", unknownEvent);
-    }
-
-    @KafkaHandler
-    public void handlePasswordChanged(PasswordChangedEvent event) {
-        log.info("[SIMULAÇÃO EMAIL] Senha alterada para {}", event.email());
-    }
-
-    @KafkaHandler
-    public void handleUserUpdated(UserUpdatedEvent event) {
-        log.info("[SIMULAÇÃO EMAIL] Dados do usuário atualizados: {}", event.email());
-    }
-
-    @KafkaHandler
-    public void handleAddressChanged(UserAddressChangedEvent event) {
-        log.info(
-                "[SIMULAÇÃO EMAIL] Endereço {} para userId={}, addressId={}",
-                event.action(),
-                event.userId(),
-                event.addressId());
+    private void dispatchTypedEvent(String eventType, String jsonPayload, String partitionKey) {
+        try {
+            switch (eventType) {
+                case "USER_REGISTERED" -> {
+                    UserRegisteredEvent event = objectMapper.readValue(jsonPayload, UserRegisteredEvent.class);
+                    log.info("Processando registro de usuário: ID={}, Email={}", event.userId(), event.email());
+                }
+                case "PASSWORD_RESET_REQUESTED" -> {
+                    PasswordResetRequestedEvent event = objectMapper.readValue(jsonPayload, PasswordResetRequestedEvent.class);
+                    log.info("Processando solicitação de reset de senha para o email: {}", event.email());
+                }
+                case "PASSWORD_CHANGED" -> {
+                    PasswordChangedEvent event = objectMapper.readValue(jsonPayload, PasswordChangedEvent.class);
+                    log.info("Processando notificação de senha alterada: ID={}", event.userId());
+                }
+                case "USER_UPDATED" -> {
+                    UserUpdatedEvent event = objectMapper.readValue(jsonPayload, UserUpdatedEvent.class);
+                    log.info("Processando atualização cadastral: ID={}", event.userId());
+                }
+                case "USER_ADDRESS_CHANGED" -> {
+                    UserAddressChangedEvent event = objectMapper.readValue(jsonPayload, UserAddressChangedEvent.class);
+                    log.info("Processando alteração de endereço: Ação={}, AddressID={}", event.action(), event.addressId());
+                }
+                default -> log.warn("Tipo de evento desconhecido: {}", eventType);
+            }
+        } catch (Exception e) {
+            log.error("Erro na desserialização/processamento do evento {} para key={}: {}", eventType, partitionKey, e.getMessage());
+            throw new IllegalStateException("Falha no processamento da mensagem Kafka", e);
+        }
     }
 }

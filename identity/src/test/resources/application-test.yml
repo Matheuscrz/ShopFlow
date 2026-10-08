@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: identity-test
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+app:
+  jwt:
+    secret: 0123456789012345678901234567890123456789012345678901234567890123
+    cookie-secure: false
+    cookie-same-site: Lax
+  kafka:
+    topics:
+      user-events: identity.user-events
+  security:
+    rate-limit:
+      login-max-attempts: 5
+      login-window-seconds: 60
+  outbox:
+    poller-interval-ms: 300000
+    cleanup-cron: "0 0 0 1 1 ?"
+  messaging:
+    dedup-cleanup-cron: "0 0 0 1 1 ?"

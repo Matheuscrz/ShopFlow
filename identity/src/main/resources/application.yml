@@ -8,8 +8,8 @@ spring:
       enabled: true
   datasource:
     url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    username: ${DB_USERNAME:shopflow_admin}
+    password: ${DB_PASSWORD:shopflow_admin_password}
     driver-class-name: org.postgresql.Driver
   flyway:
     enabled: true
@@ -49,7 +49,7 @@ spring:
       topics:
         user-events: "identity.user-events"
     jwt:
-      secret: ${JWT_SECRET}
+      secret: ${JWT_SECRET:uma-secreta-muito-segura}
       cookie-secure: false
       cookie-same-site: "Lax"
     security:
