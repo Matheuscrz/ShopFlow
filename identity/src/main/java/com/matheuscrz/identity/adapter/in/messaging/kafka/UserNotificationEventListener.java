@@ -120,15 +120,16 @@ public class UserNotificationEventListener {
     private String resolveEventId(ConsumerRecord<String, String> record) {
         var header = record.headers().lastHeader(EVENT_ID_HEADER);
 
-        if (header == null || header.value() == null) {
-            throw new IllegalStateException(
-                    "Header obrigatório ausente: " + EVENT_ID_HEADER);
+        String eventId;
+
+        if (header != null && header.value() != null) {
+            eventId = new String(header.value(), StandardCharsets.UTF_8);
+        } else {
+            eventId = record.key();
         }
 
-        String eventId = new String(header.value(), StandardCharsets.UTF_8);
-
-        if (eventId.isBlank()) {
-            throw new IllegalStateException("eventId vazio");
+        if (eventId == null || eventId.isBlank()) {
+            throw new IllegalStateException("EventId ausente ou vazio");
         }
 
         return eventId;
