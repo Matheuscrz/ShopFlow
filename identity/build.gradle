@@ -42,6 +42,9 @@ dependencies {
     // Mensageria
     implementation 'org.springframework.kafka:spring-kafka'
 
+    // E-mail
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
     // Monitoramento e métricas
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
