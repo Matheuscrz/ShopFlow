@@ -1,11 +1,11 @@
-import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import { useAuthStore } from '../stores/auth-store';
+import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+import { useAuthStore } from "../stores/auth-store";
 
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8080/api",
   withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -37,18 +37,25 @@ const processQueue = (error: unknown, token: string | null = null) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+    };
 
     // Tratamento de Rate Limit com leitura defensiva de Retry-After (RFC 6585)
     if (error.response?.status === 429) {
-      const retryAfter = error.response.headers['retry-after'] ?? '60';
-      console.warn(`Taxa limite de requisições excedida. Aguarde ${retryAfter} segundos.`);
+      const retryAfter = error.response.headers["retry-after"] ?? "60";
+      console.warn(
+        `Taxa limite de requisições excedida. Aguarde ${retryAfter} segundos.`,
+      );
       return Promise.reject(error);
     }
 
     // Interceptação de 401 e renovação silenciosa de token
     if (error.response?.status === 401 && !originalRequest._retry) {
-      if (originalRequest.url?.includes('/auth/refresh') || originalRequest.url?.includes('/auth/login')) {
+      if (
+        originalRequest.url?.includes("/auth/refresh") ||
+        originalRequest.url?.includes("/auth/login")
+      ) {
         useAuthStore.getState().clearSession();
         return Promise.reject(error);
       }
@@ -68,7 +75,7 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshResponse = await apiClient.post('/auth/refresh');
+        const refreshResponse = await apiClient.post("/auth/refresh");
         const { accessToken, user } = refreshResponse.data;
         useAuthStore.getState().setSession(accessToken, user);
 
@@ -85,5 +92,5 @@ apiClient.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );

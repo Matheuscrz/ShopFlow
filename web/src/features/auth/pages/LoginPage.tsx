@@ -7,6 +7,7 @@ import { Input } from "../../../components/ui/Input";
 import { useThemeStore } from "../../../stores/theme-store";
 import { useAuth } from "../hooks/useAuth";
 import { type LoginFormData, loginSchema } from "../schemas/auth.schema";
+import { Link } from "react-router";
 
 export const LoginPage: React.FC = () => {
   const { login, loading, errorMessage, retryAfter } = useAuth();
@@ -84,6 +85,13 @@ export const LoginPage: React.FC = () => {
             Entrar
           </Button>
         </form>
+
+        <p className="mt-6 text-center text-sm text-text-muted">
+          Ainda não possui uma conta?{" "}
+          <Link to="/register" className="text-primary hover:underline">
+            Criar cadastro
+          </Link>
+        </p>
       </div>
     </main>
   );

@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { authApi } from "../features/auth/api/auth.api";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { DashboardPage } from "../features/profile/pages/DashboardPage";
+import { RegisterPage } from "../features/auth/pages/RegisterPage";
 import { useAuthStore } from "../stores/auth-store";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
@@ -23,10 +24,16 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 export const AppRoutes: React.FC = () => {
   const [initializing, setInitializing] = useState(true);
+  const sessionInitialized = useRef(false);
   const { setSession, clearSession } = useAuthStore();
 
   useEffect(() => {
-    // Ao abrir a aplicação, tenta restaurar a sessão via Cookie HttpOnly silenciosamente
+    if (sessionInitialized.current) {
+      return;
+    }
+
+    sessionInitialized.current = true;
+
     authApi
       .refresh()
       .then((data) => setSession(data.accessToken, data.user))
@@ -59,6 +66,14 @@ export const AppRoutes: React.FC = () => {
             <ProtectedRoute>
               <DashboardPage />
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicRoute>
+              <RegisterPage />
+            </PublicRoute>
           }
         />
         <Route path="*" element={<Navigate to="/login" replace />} />
