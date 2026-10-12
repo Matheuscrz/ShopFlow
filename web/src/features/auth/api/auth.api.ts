@@ -3,6 +3,10 @@ import { sanitizeText } from "../../../lib/sanitize";
 import type { RegisterFormData } from "../schemas/register.schema";
 import type { LoginFormData } from "../schemas/auth.schema";
 import type { LoginResponse, UserSession } from "../types/auth.types";
+import type {
+  ForgotPasswordFormData,
+  ResetPasswordFormData,
+} from "../schemas/recovery.schema";
 
 export const authApi = {
   async register(data: RegisterFormData): Promise<UserSession> {
@@ -40,5 +44,18 @@ export const authApi = {
   async getMe(): Promise<UserSession> {
     const response = await apiClient.get<UserSession>("/users/me");
     return response.data;
+  },
+
+  async forgotPassword(data: ForgotPasswordFormData): Promise<void> {
+    await apiClient.post("/auth/forgot-password", {
+      email: sanitizeText(data.email),
+    });
+  },
+
+  async resetPassword(data: ResetPasswordFormData): Promise<void> {
+    await apiClient.post("/auth/reset-password", {
+      token: data.token,
+      newPassword: data.newPassword,
+    });
   },
 };

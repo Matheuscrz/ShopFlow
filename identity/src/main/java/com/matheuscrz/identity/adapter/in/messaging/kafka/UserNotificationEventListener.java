@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.matheuscrz.identity.application.port.in.ProcessNotificationUseCase;
 import com.matheuscrz.identity.application.port.out.EventDeduplicationPort;
 import com.matheuscrz.identity.domain.event.PasswordChangedEvent;
+import com.matheuscrz.identity.domain.event.PasswordResetRequestedEvent;
 import com.matheuscrz.identity.domain.event.UserRegisteredEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserNotificationEventListener {
 
+    private static final String EVENT_ID_HEADER = "eventId";
     private static final String EVENT_TYPE_HEADER = "eventType";
 
     private final EventDeduplicationPort deduplicationPort;
@@ -46,20 +48,25 @@ public class UserNotificationEventListener {
         }
 
         try {
-            dispatchTypedEvent(eventType, payload, eventIdStr);
-            deduplicationPort.markAsProcessed(eventId, eventType);
-            log.info("Evento processado com sucesso: eventId={}, type={}", eventId, eventType);
-        } catch (JsonProcessingException e) {
-            log.error(
-                    "Payload inválido: eventId={}, type={}, payload={}",
+            log.info(
+                    "Iniciando processamento de notificação: eventId={}, type={}",
                     eventId,
-                    eventType,
-                    payload,
-                    e);
+                    eventType);
+
+            dispatchTypedEvent(eventType, payload, eventIdStr);
+
+            deduplicationPort.markAsProcessed(eventId, eventType);
+
+            log.info(
+                    "Evento processado e marcado como consumido: eventId={}, type={}",
+                    eventId,
+                    eventType);
+        } catch (JsonProcessingException e) {
+            log.error("Payload inválido para eventId={}", eventId, e);
             throw new IllegalStateException("Payload de evento inválido", e);
         } catch (RuntimeException e) {
             log.error(
-                    "Falha ao processar evento: eventId={}, type={}",
+                    "Falha antes de marcar evento como consumido: eventId={}, type={}",
                     eventId,
                     eventType,
                     e);
@@ -88,6 +95,12 @@ public class UserNotificationEventListener {
                         event.userId());
                 notificationUseCase.handlePasswordChanged(event);
             }
+            case "PASSWORD_RESET_REQUESTED" -> {
+                PasswordResetRequestedEvent event = objectMapper.readValue(jsonPayload,
+                        PasswordResetRequestedEvent.class);
+                log.info("Enviando e-mail de recuperação de senha: eventId={}, email={}", eventId, event.email());
+                notificationUseCase.handlePasswordResetRequested(event);
+            }
             default -> log.debug(
                     "Evento sem notificação configurada: eventId={}, type={}",
                     eventId,
@@ -105,9 +118,19 @@ public class UserNotificationEventListener {
     }
 
     private String resolveEventId(ConsumerRecord<String, String> record) {
-        if (record.key() == null || record.key().isBlank()) {
-            throw new IllegalStateException("Evento Kafka sem chave/idempotency key");
+        var header = record.headers().lastHeader(EVENT_ID_HEADER);
+
+        if (header == null || header.value() == null) {
+            throw new IllegalStateException(
+                    "Header obrigatório ausente: " + EVENT_ID_HEADER);
         }
-        return record.key();
+
+        String eventId = new String(header.value(), StandardCharsets.UTF_8);
+
+        if (eventId.isBlank()) {
+            throw new IllegalStateException("eventId vazio");
+        }
+
+        return eventId;
     }
 }

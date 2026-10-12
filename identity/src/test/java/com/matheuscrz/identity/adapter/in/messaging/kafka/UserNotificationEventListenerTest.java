@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.matheuscrz.identity.application.port.in.ProcessNotificationUseCase;
 import com.matheuscrz.identity.application.port.out.EventDeduplicationPort;
+import com.matheuscrz.identity.domain.event.PasswordResetRequestedEvent;
 import com.matheuscrz.identity.domain.event.UserRegisteredEvent;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,7 +60,7 @@ class UserNotificationEventListenerTest {
         ArgumentCaptor<UserRegisteredEvent> captor = ArgumentCaptor.forClass(UserRegisteredEvent.class);
         verify(notificationUseCase).handleUserRegistered(captor.capture());
         assertThat(captor.getValue().email()).isEqualTo("teste@shopflow.dev");
-        
+
         verify(deduplicationPort).markAsProcessed(eventId, "USER_REGISTERED");
     }
 
@@ -89,14 +91,35 @@ class UserNotificationEventListenerTest {
                 .hasMessageContaining("Payload de evento inválido");
     }
 
+    @Test
+    @DisplayName("Deve processar PasswordResetRequestedEvent inédito e enviar e-mail de recuperação")
+    void shouldProcessFreshPasswordResetRequestedEvent() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        PasswordResetRequestedEvent event = PasswordResetRequestedEvent.of(
+                userId, "user@test.dev", "raw-token-123", Instant.now().plusSeconds(900));
+        String payload = objectMapper.writeValueAsString(event);
+
+        ConsumerRecord<String, String> record = buildRecord(eventId, "PASSWORD_RESET_REQUESTED", payload);
+        when(deduplicationPort.isAlreadyProcessed(eventId)).thenReturn(false);
+
+        listener.onMessage(record);
+
+        ArgumentCaptor<PasswordResetRequestedEvent> captor = ArgumentCaptor.forClass(PasswordResetRequestedEvent.class);
+        verify(notificationUseCase).handlePasswordResetRequested(captor.capture());
+        assertThat(captor.getValue().email()).isEqualTo("user@test.dev");
+        assertThat(captor.getValue().resetToken()).isEqualTo("raw-token-123");
+
+        verify(deduplicationPort).markAsProcessed(eventId, "PASSWORD_RESET_REQUESTED");
+    }
+
     private ConsumerRecord<String, String> buildRecord(UUID eventId, String type, String payload) {
         ConsumerRecord<String, String> record = new ConsumerRecord<>(
-                "identity.user-events", 
-                0, 
-                0L, 
-                eventId.toString(), 
-                payload
-        );
+                "identity.user-events",
+                0,
+                0L,
+                eventId.toString(),
+                payload);
         record.headers().add("eventType", type.getBytes(StandardCharsets.UTF_8));
         return record;
     }

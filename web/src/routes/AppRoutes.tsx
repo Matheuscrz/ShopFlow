@@ -4,6 +4,8 @@ import { authApi } from "../features/auth/api/auth.api";
 import { LoginPage } from "../features/auth/pages/LoginPage";
 import { DashboardPage } from "../features/profile/pages/DashboardPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
+import { ForgotPasswordPage } from "../features/auth/pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "../features/auth/pages/ResetPasswordPage";
 import { useAuthStore } from "../stores/auth-store";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
@@ -76,6 +78,24 @@ export const AppRoutes: React.FC = () => {
             </PublicRoute>
           }
         />
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicRoute>
+              <ForgotPasswordPage />
+            </PublicRoute>
+          }
+        />
+
+        <Route
+          path="/reset-password"
+          element={
+            <PublicRoute>
+              <ResetPasswordPage />
+            </PublicRoute>
+          }
+        />
+
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>

@@ -33,26 +33,24 @@ public class OutboxEventDispatcher {
     @Transactional
     public void processOutbox() {
         List<OutboxEventJpaEntity> batch = outboxRepository.findPendingEventsForUpdate(50);
-
         for (OutboxEventJpaEntity event : batch) {
             try {
                 ProducerRecord<String, String> record = new ProducerRecord<>(
                         TOPIC,
-                        event.getAggregateId().toString(),
+                        event.getAggregateId(),
                         event.getPayload());
-
                 record.headers().add(
                         new RecordHeader("eventType", event.getEventType().name().getBytes(StandardCharsets.UTF_8)));
                 record.headers()
                         .add(new RecordHeader("eventId", event.getId().toString().getBytes(StandardCharsets.UTF_8)));
 
-                // Envio síncrono para garantir entrega antes de comitar a transação
                 kafkaTemplate.send(record).get(3, TimeUnit.SECONDS);
                 event.markPublished(clock);
-
+                outboxRepository.saveAndFlush(event);
             } catch (Exception ex) {
                 log.error("Falha ao despachar outbox event {}", event.getId(), ex);
                 event.registerFailure(ex.getMessage());
+                outboxRepository.saveAndFlush(event);
             }
         }
     }

@@ -2,7 +2,10 @@ package com.matheuscrz.identity.adapter.in.web;
 
 import com.matheuscrz.identity.adapter.in.web.dto.AuthResponse;
 import com.matheuscrz.identity.adapter.in.web.dto.LoginRequest;
+import com.matheuscrz.identity.adapter.in.web.dto.ForgotPasswordRequest;
+import com.matheuscrz.identity.adapter.in.web.dto.ResetPasswordRequest;
 import com.matheuscrz.identity.application.port.in.AuthenticateUserUseCase;
+import com.matheuscrz.identity.application.port.in.PasswordResetUseCase;
 import com.matheuscrz.identity.config.JwtProperties;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -32,10 +35,15 @@ public class AuthController {
     private static final Duration REFRESH_TOKEN_MAX_AGE = Duration.ofDays(7);
 
     private final AuthenticateUserUseCase authenticateUserUseCase;
+    private final PasswordResetUseCase passwordResetUseCase;
     private final JwtProperties jwtProperties;
 
-    public AuthController(AuthenticateUserUseCase authenticateUserUseCase, JwtProperties jwtProperties) {
+    public AuthController(
+            AuthenticateUserUseCase authenticateUserUseCase,
+            PasswordResetUseCase passwordResetUseCase,
+            JwtProperties jwtProperties) {
         this.authenticateUserUseCase = authenticateUserUseCase;
+        this.passwordResetUseCase = passwordResetUseCase;
         this.jwtProperties = jwtProperties;
     }
 
@@ -108,5 +116,33 @@ public class AuthController {
                 .path("/api/auth")
                 .maxAge(maxAge)
                 .build();
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Solicitar recuperação de senha", description = "Envia um e-mail de recuperação quando o endereço está cadastrado.")
+    @ApiResponse(responseCode = "202", description = "Solicitação recebida")
+    public ResponseEntity<Void> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+
+        passwordResetUseCase.requestPasswordReset(request.email());
+
+        // Sempre retorna 202 para evitar enumeração de usuários.
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(summary = "Redefinir senha", description = "Redefine a senha usando um token válido recebido por e-mail.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Senha redefinida com sucesso"),
+            @ApiResponse(responseCode = "400", description = "Token inválido ou expirado")
+    })
+    public ResponseEntity<Void> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+
+        passwordResetUseCase.resetPassword(
+                request.token(),
+                request.newPassword());
+
+        return ResponseEntity.noContent().build();
     }
 }

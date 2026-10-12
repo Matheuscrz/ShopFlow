@@ -39,14 +39,17 @@ public class OutboxUserNotificationAdapter implements UserNotificationEventPort 
     @Override
     public void publishUserRegistered(UserRegisteredEvent event) {
         saveAndEmit(
+                event.eventId(),
                 "User",
                 event.userId().toString(),
                 OutboxEventType.USER_REGISTERED,
                 event);
     }
 
+    @Override
     public void publishPasswordResetRequested(PasswordResetRequestedEvent event) {
         saveAndEmit(
+                event.eventId(),
                 "User",
                 event.userId().toString(),
                 OutboxEventType.PASSWORD_RESET_REQUESTED,
@@ -55,6 +58,7 @@ public class OutboxUserNotificationAdapter implements UserNotificationEventPort 
 
     public void publishPasswordChanged(PasswordChangedEvent event) {
         saveAndEmit(
+                event.eventId(),
                 "User",
                 event.userId().toString(),
                 OutboxEventType.PASSWORD_CHANGED,
@@ -63,6 +67,7 @@ public class OutboxUserNotificationAdapter implements UserNotificationEventPort 
 
     public void publishUserUpdated(UserUpdatedEvent event) {
         saveAndEmit(
+                event.eventId(),
                 "User",
                 event.userId().toString(),
                 OutboxEventType.USER_UPDATED,
@@ -71,6 +76,7 @@ public class OutboxUserNotificationAdapter implements UserNotificationEventPort 
 
     public void publishAddressChanged(UserAddressChangedEvent event) {
         saveAndEmit(
+                event.eventId(),
                 "UserAddress",
                 event.userId().toString(),
                 OutboxEventType.USER_ADDRESS_CHANGED,
@@ -78,15 +84,15 @@ public class OutboxUserNotificationAdapter implements UserNotificationEventPort 
     }
 
     private void saveAndEmit(
+            UUID eventId,
             String aggregateType,
             String aggregateId,
             OutboxEventType eventType,
             Object payload) {
         try {
             String jsonPayload = objectMapper.writeValueAsString(payload);
-
             OutboxEventJpaEntity entity = new OutboxEventJpaEntity(
-                    UUID.randomUUID(),
+                    eventId != null ? eventId : UUID.randomUUID(),
                     aggregateType,
                     aggregateId,
                     eventType,
@@ -94,12 +100,10 @@ public class OutboxUserNotificationAdapter implements UserNotificationEventPort 
                     OutboxEventStatus.PENDING,
                     Instant.now(),
                     null);
-
             outboxRepository.save(entity);
             applicationEventPublisher.publishEvent(entity.getId());
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException(
-                    "Falha ao serializar payload do Outbox", e);
+            throw new IllegalStateException("Falha ao serializar payload do Outbox", e);
         }
     }
 }

@@ -27,3 +27,8 @@ app:
     cleanup-cron: "0 0 0 1 1 ?"
   messaging:
     dedup-cleanup-cron: "0 0 0 1 1 ?"
+  frontend-url: http://localhost:3000
+  mail:
+    enabled: false
+    from: test@shopflow.dev
+    logo-url: http://localhost/logo.png
