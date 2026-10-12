@@ -7,6 +7,7 @@ import com.matheuscrz.identity.application.port.out.EventDeduplicationPort;
 import com.matheuscrz.identity.domain.event.PasswordChangedEvent;
 import com.matheuscrz.identity.domain.event.PasswordResetRequestedEvent;
 import com.matheuscrz.identity.domain.event.UserRegisteredEvent;
+import com.matheuscrz.identity.domain.event.UserAddressChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -100,6 +101,11 @@ public class UserNotificationEventListener {
                         PasswordResetRequestedEvent.class);
                 log.info("Enviando e-mail de recuperação de senha: eventId={}, email={}", eventId, event.email());
                 notificationUseCase.handlePasswordResetRequested(event);
+            }
+            case "USER_ADDRESS_CHANGED" -> {
+                UserAddressChangedEvent event = objectMapper.readValue(jsonPayload, UserAddressChangedEvent.class);
+
+                notificationUseCase.handleAddressChanged(event);
             }
             default -> log.debug(
                     "Evento sem notificação configurada: eventId={}, type={}",

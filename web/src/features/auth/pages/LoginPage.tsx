@@ -7,7 +7,7 @@ import { Input } from "../../../components/ui/Input";
 import { useThemeStore } from "../../../stores/theme-store";
 import { useAuth } from "../hooks/useAuth";
 import { type LoginFormData, loginSchema } from "../schemas/auth.schema";
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 
 export const LoginPage: React.FC = () => {
   const { login, loading, errorMessage, retryAfter } = useAuth();
@@ -48,9 +48,7 @@ export const LoginPage: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight">
             Entrar no ShopFlow
           </h1>
-          <p className="text-sm text-text-muted mt-1">
-            Acesse sua conta corporativa
-          </p>
+          <p className="text-sm text-text-muted mt-1">Acesse sua conta</p>
         </header>
 
         {errorMessage && (

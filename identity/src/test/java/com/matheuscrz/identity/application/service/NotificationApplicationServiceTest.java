@@ -2,6 +2,7 @@ package com.matheuscrz.identity.application.service;
 
 import com.matheuscrz.identity.application.port.out.EmailSenderPort;
 import com.matheuscrz.identity.domain.event.PasswordChangedEvent;
+import com.matheuscrz.identity.domain.event.UserAddressChangedEvent;
 import com.matheuscrz.identity.domain.event.UserRegisteredEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,5 +49,25 @@ class NotificationApplicationServiceTest {
         notificationService.handlePasswordChanged(event);
 
         verify(emailSenderPort).sendPasswordChangedEmail("seguranca@shopflow.dev", "Usuário");
+    }
+
+    @Test
+    @DisplayName("Deve repassar evento de endereço alterado para o adaptador de email")
+    void shouldForwardAddressChangedEmail() {
+        UUID userId = UUID.randomUUID();
+        UUID addressId = UUID.randomUUID();
+        UserAddressChangedEvent event = UserAddressChangedEvent.of(
+                userId,
+                addressId,
+                "cliente@shopflow.dev",
+                "CREATED",
+                Instant.now());
+
+        notificationService.handleAddressChanged(event);
+
+        verify(emailSenderPort).sendAddressChangedEmail(
+                "cliente@shopflow.dev",
+                "Usuário",
+                "CREATED");
     }
 }

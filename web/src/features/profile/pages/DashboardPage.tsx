@@ -2,6 +2,7 @@ import { LogOut, ShieldCheck, User } from "lucide-react";
 import React from "react";
 import { Button } from "../../../components/ui/Button";
 import { useAuth } from "../../auth/hooks/useAuth";
+import { Link } from "react-router-dom";
 
 export const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
@@ -46,6 +47,12 @@ export const DashboardPage: React.FC = () => {
               <span className="font-semibold text-primary">{user?.role}</span>
             </div>
           </div>
+          <Link
+            to="/profile"
+            className="inline-flex mt-6 text-sm text-primary hover:underline"
+          >
+            Editar perfil e endereço
+          </Link>
         </div>
       </main>
     </div>

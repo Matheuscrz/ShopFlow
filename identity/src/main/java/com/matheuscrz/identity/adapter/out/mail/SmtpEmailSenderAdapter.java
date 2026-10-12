@@ -107,4 +107,29 @@ public class SmtpEmailSenderAdapter implements EmailSenderPort {
 
         sendHtmlEmail(destinationEmail, subject, htmlBody);
     }
+
+    @Override
+    public void sendAddressChangedEmail(
+            String destinationEmail,
+            String userName,
+            String action) {
+        String subject = "Seu endereço foi alterado";
+        String safeUserName = HtmlUtils.htmlEscape(userName);
+
+        String htmlBody = """
+                <div style="font-family: Arial, sans-serif; padding: 30px;">
+                    <h2>Olá, %s!</h2>
+                    <p>
+                        Seu endereço foi %s com sucesso.
+                    </p>
+                    <p>
+                        Caso não tenha realizado essa alteração, entre em contato com nossa equipe.
+                    </p>
+                </div>
+                """.formatted(
+                safeUserName,
+                "CREATED".equals(action) ? "adicionado" : "atualizado");
+
+        sendHtmlEmail(destinationEmail, subject, htmlBody);
+    }
 }

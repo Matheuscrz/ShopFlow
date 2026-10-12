@@ -7,7 +7,7 @@ export interface UserSession {
 
 export interface LoginResponse {
   accessToken: string;
-  user: UserSession;
+  user?: UserSession;
 }
 
 export interface ApiErrorResponse {

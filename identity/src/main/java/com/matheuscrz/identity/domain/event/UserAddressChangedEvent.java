@@ -7,15 +7,22 @@ public record UserAddressChangedEvent(
         UUID eventId,
         UUID userId,
         UUID addressId,
+        String email,
         String action,
         Instant occurredAt) {
 
     public static UserAddressChangedEvent of(
             UUID userId,
             UUID addressId,
+            String email,
             String action,
             Instant occurredAt) {
         return new UserAddressChangedEvent(
-                UUID.randomUUID(), userId, addressId, action, occurredAt);
+                UUID.randomUUID(),
+                userId,
+                addressId,
+                email,
+                action,
+                occurredAt);
     }
 }

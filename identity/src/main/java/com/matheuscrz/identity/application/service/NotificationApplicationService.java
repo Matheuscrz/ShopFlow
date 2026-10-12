@@ -5,6 +5,7 @@ import com.matheuscrz.identity.application.port.out.EmailSenderPort;
 import com.matheuscrz.identity.domain.event.PasswordChangedEvent;
 import com.matheuscrz.identity.domain.event.PasswordResetRequestedEvent;
 import com.matheuscrz.identity.domain.event.UserRegisteredEvent;
+import com.matheuscrz.identity.domain.event.UserAddressChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -43,5 +44,13 @@ public class NotificationApplicationService implements ProcessNotificationUseCas
                 event.email(),
                 "Usuário",
                 resetLink);
+    }
+
+    @Override
+    public void handleAddressChanged(UserAddressChangedEvent event) {
+        emailSenderPort.sendAddressChangedEmail(
+                event.email(),
+                "Usuário",
+                event.action());
     }
 }

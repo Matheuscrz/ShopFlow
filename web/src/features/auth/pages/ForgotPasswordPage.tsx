@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle } from "lucide-react";
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 import { Button } from "../../../components/ui/Button";
 import { Input } from "../../../components/ui/Input";
 import { authApi } from "../api/auth.api";
@@ -40,6 +40,7 @@ export const ForgotPasswordPage: React.FC = () => {
       setLoading(false);
     }
   };
+
 
   return (
     <main className="min-h-screen flex items-center justify-center p-4 bg-background text-text-main">

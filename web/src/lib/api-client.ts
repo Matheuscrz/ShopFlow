@@ -1,5 +1,6 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "../stores/auth-store";
+import { decodeUserFromToken } from "./jwt";
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:8080/api",
@@ -76,9 +77,10 @@ apiClient.interceptors.response.use(
 
       try {
         const refreshResponse = await apiClient.post("/auth/refresh");
-        const { accessToken, user } = refreshResponse.data;
+        const { accessToken } = refreshResponse.data;
+        const user =
+          refreshResponse.data.user ?? decodeUserFromToken(accessToken);
         useAuthStore.getState().setSession(accessToken, user);
-
         processQueue(null, accessToken);
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return apiClient(originalRequest);

@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../../stores/auth-store";
 import { authApi } from "../api/auth.api";
+import { decodeUserFromToken } from "../../../lib/jwt";
 import type { LoginFormData } from "../schemas/auth.schema";
 
 export function useAuth() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
-
   const { setSession, clearSession, user, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
 
@@ -16,10 +16,10 @@ export function useAuth() {
     setLoading(true);
     setErrorMessage(null);
     setRetryAfter(null);
-
     try {
       const response = await authApi.login(data);
-      setSession(response.accessToken, response.user);
+      const user = response.user ?? decodeUserFromToken(response.accessToken);
+      setSession(response.accessToken, user);
       navigate("/dashboard", { replace: true });
     } catch (err: any) {
       if (err.response?.status === 429) {
