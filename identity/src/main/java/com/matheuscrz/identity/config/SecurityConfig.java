@@ -31,9 +31,9 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+// import org.springframework.web.cors.CorsConfiguration;
+// import org.springframework.web.cors.CorsConfigurationSource;
+// import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 import java.util.List;
@@ -138,39 +138,37 @@ public class SecurityConfig {
                 );
         }
 
-        @Bean
-        CorsConfigurationSource corsConfigurationSource() {
-                CorsConfiguration configuration = new CorsConfiguration();
+        // @Bean
+        // CorsConfigurationSource corsConfigurationSource() {
+        // CorsConfiguration configuration = new CorsConfiguration();
 
-                configuration.setAllowedOrigins(
-                                Arrays.stream(allowedOrigins.split(","))
-                                                .map(String::trim)
-                                                .filter(origin -> !origin.isBlank())
-                                                .toList());
+        // configuration.setAllowedOriginPatterns(
+        // Arrays.asList(allowedOrigins.split(",")));
 
-                configuration.setAllowedMethods(List.of(
-                                "GET",
-                                "POST",
-                                "PUT",
-                                "PATCH",
-                                "DELETE",
-                                "OPTIONS"));
+        // configuration.setAllowedMethods(List.of(
+        // "GET",
+        // "POST",
+        // "PUT",
+        // "PATCH",
+        // "DELETE",
+        // "OPTIONS"));
 
-                configuration.setAllowedHeaders(List.of(
-                                "Authorization",
-                                "Content-Type",
-                                "Accept",
-                                "Origin",
-                                "X-Requested-With"));
+        // configuration.setAllowedHeaders(List.of(
+        // "Authorization",
+        // "Content-Type",
+        // "Accept",
+        // "Origin",
+        // "X-Requested-With"));
 
-                // Necessário para o navegador enviar o cookie HttpOnly.
-                configuration.setAllowCredentials(true);
+        // // Necessário para o navegador enviar o cookie HttpOnly.
+        // configuration.setAllowCredentials(true);
 
-                configuration.setMaxAge(3600L);
+        // configuration.setMaxAge(3600L);
 
-                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-                source.registerCorsConfiguration("/**", configuration);
+        // UrlBasedCorsConfigurationSource source = new
+        // UrlBasedCorsConfigurationSource();
+        // source.registerCorsConfiguration("/**", configuration);
 
-                return source;
-        }
+        // return source;
+        // }
 }
