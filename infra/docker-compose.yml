@@ -68,29 +68,6 @@ services:
       timeout: 5s
       retries: 10
 
-  kafka-init:
-    image: apache/kafka:3.9.0
-    container_name: shopflow-kafka-init
-    depends_on:
-      kafka:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      for topic in \
-        order.events \
-        inventory.events \
-        order.events.DLT \
-        inventory.events.DLT \
-        notification.events.DLT; do
-        /opt/kafka/bin/kafka-topics.sh \
-          --bootstrap-server kafka:29092 \
-          --create \
-          --if-not-exists \
-          --topic "$$topic" \
-          --partitions 3 \
-          --replication-factor 1;
-      done
-
   kafka-ui:
     image: provectuslabs/kafka-ui:v0.7.2
     container_name: shopflow-kafka-ui
@@ -102,22 +79,6 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-
-  mailhog:
-    image: mailhog/mailhog:v1.0.1
-    container_name: shopflow-mailhog
-    ports:
-      - "8025:8025"
-      - "1025:1025"
-
-  wiremock:
-    image: wiremock/wiremock:3.9.2
-    container_name: shopflow-wiremock
-    ports:
-      - "8089:8080"
-    volumes:
-      - ./wiremock:/home/wiremock
-    command: --global-response-templating
 
   kafka-connect:
     image: debezium/connect:2.7
@@ -162,7 +123,7 @@ services:
 
   frontend:
     build:
-      context: ../frontend
+      context: ../web
     container_name: shopflow-frontend
     ports:
       - "3000:3000"
@@ -173,6 +134,51 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  identity:
+    build:
+      context: ../identity
+      dockerfile: Dockerfile
+    container_name: shopflow-identity
+    env_file:
+      - ../identity/.env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/identity_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  kong:
+    image: kong:latest
+    container_name: shopflow-gateway
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: 127.0.0.1:8001
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+    volumes:
+      - ./kong/kong.yml:/etc/kong/kong.yml:ro
+    ports:
+      - "8000:8000"
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      - identity
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
