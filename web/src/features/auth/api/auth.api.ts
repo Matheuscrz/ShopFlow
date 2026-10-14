@@ -13,6 +13,7 @@ export const authApi = {
     const response = await apiClient.post<UserSession>("/users/register", {
       name: sanitizeText(data.name),
       email: sanitizeText(data.email),
+      cpf: data.cpf,
       password: data.password,
     });
 

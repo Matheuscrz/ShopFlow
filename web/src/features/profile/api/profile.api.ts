@@ -24,6 +24,11 @@ const sanitizeAddress = (data: AddressFormData): AddressFormData => ({
   country: sanitizeText(data.country),
 });
 
+export interface ChangePasswordData {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export const profileApi = {
   async getProfile(userId: string): Promise<UserProfile> {
     const response = await apiClient.get<UserProfile>(`/users/${userId}`);
@@ -66,5 +71,12 @@ export const profileApi = {
       sanitizeAddress(data),
     );
     return response.data;
+  },
+
+  async changePassword(
+    userId: string,
+    data: ChangePasswordData,
+  ): Promise<void> {
+    await apiClient.patch(`/users/${userId}/password`, data);
   },
 };

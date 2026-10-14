@@ -10,6 +10,7 @@ import {
   registerSchema,
   type RegisterFormData,
 } from "../schemas/register.schema";
+import { formatCpf } from "../../../lib/cpf";
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ export const RegisterPage: React.FC = () => {
 
   const {
     register,
+    setValue,
     handleSubmit,
     formState: { errors },
   } = useForm<RegisterFormData>({
@@ -28,6 +30,7 @@ export const RegisterPage: React.FC = () => {
       email: "",
       password: "",
       confirmPassword: "",
+      cpf: "",
     },
   });
 
@@ -97,6 +100,23 @@ export const RegisterPage: React.FC = () => {
             placeholder="usuario@dominio.com"
             error={errors.email?.message}
             {...register("email")}
+          />
+
+          <Input
+            label="CPF"
+            placeholder="000.000.000-00"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={14}
+            error={errors.cpf?.message}
+            {...register("cpf", {
+              onChange: (event) => {
+                setValue("cpf", formatCpf(event.target.value), {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                });
+              },
+            })}
           />
 
           <Input
