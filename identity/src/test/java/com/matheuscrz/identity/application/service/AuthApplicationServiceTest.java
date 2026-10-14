@@ -35,117 +35,115 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AuthApplicationServiceTest {
 
-    @Mock
-    private UserRepositoryPort userRepository;
+        @Mock
+        private UserRepositoryPort userRepository;
 
-    @Mock
-    private RefreshTokenRepositoryPort refreshTokenRepository;
+        @Mock
+        private RefreshTokenRepositoryPort refreshTokenRepository;
 
-    @Mock
-    private TokenProviderPort tokenProvider;
+        @Mock
+        private TokenProviderPort tokenProvider;
 
-    @Mock
-    private PasswordSecurityPort passwordSecurity;
+        @Mock
+        private PasswordSecurityPort passwordSecurity;
 
-    private final Clock clock = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), ZoneOffset.UTC);
+        private final Clock clock = Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), ZoneOffset.UTC);
 
-    private AuthApplicationService authService;
+        private AuthApplicationService authService;
 
-    @BeforeEach
-    void setUp() {
-        this.authService = new AuthApplicationService(
-                userRepository,
-                refreshTokenRepository,
-                tokenProvider,
-                passwordSecurity,
-                clock
-        );
-    }
+        @BeforeEach
+        void setUp() {
+                this.authService = new AuthApplicationService(
+                                userRepository,
+                                refreshTokenRepository,
+                                tokenProvider,
+                                passwordSecurity,
+                                clock);
+        }
 
-    @Test
-    @DisplayName("Deve autenticar com sucesso e emitir tokens para credenciais válidas")
-    void shouldAuthenticateSuccessfully() {
-        UUID userId = UUID.randomUUID();
-        Email email = Email.of("cliente@shopflow.dev");
-        User user = User.restore(
-                userId,
-                email,
-                "hashedPass",
-                "Cliente Teste",
-                Role.CUSTOMER,
-                UserStatus.ACTIVE,
-                clock.instant()
-        );
+        @Test
+        @DisplayName("Deve autenticar com sucesso e emitir tokens para credenciais válidas")
+        void shouldAuthenticateSuccessfully() {
+                UUID userId = UUID.randomUUID();
+                Email email = Email.of("cliente@shopflow.dev");
+                User user = User.restore(
+                                userId,
+                                email,
+                                "hashedPass",
+                                "Cliente Teste",
+                                null,
+                                Role.CUSTOMER,
+                                UserStatus.ACTIVE,
+                                clock.instant());
 
-        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
-        when(passwordSecurity.matches("SenhaSegura123", "hashedPass")).thenReturn(true);
-        when(tokenProvider.generateRawRefreshToken()).thenReturn("raw-refresh-uuid");
-        when(tokenProvider.hashToken("raw-refresh-uuid")).thenReturn("hashed-refresh-uuid");
-        when(tokenProvider.generateAccessToken(user)).thenReturn("access.token.jwt");
+                when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+                when(passwordSecurity.matches("SenhaSegura123", "hashedPass")).thenReturn(true);
+                when(tokenProvider.generateRawRefreshToken()).thenReturn("raw-refresh-uuid");
+                when(tokenProvider.hashToken("raw-refresh-uuid")).thenReturn("hashed-refresh-uuid");
+                when(tokenProvider.generateAccessToken(user)).thenReturn("access.token.jwt");
 
-        var response = authService.login(new LoginCommand("cliente@shopflow.dev", "SenhaSegura123"));
+                var response = authService.login(new LoginCommand("cliente@shopflow.dev", "SenhaSegura123"));
 
-        assertThat(response).isNotNull();
-        assertThat(response.accessToken()).isEqualTo("access.token.jwt");
-        assertThat(response.refreshToken()).isEqualTo("raw-refresh-uuid");
+                assertThat(response).isNotNull();
+                assertThat(response.accessToken()).isEqualTo("access.token.jwt");
+                assertThat(response.refreshToken()).isEqualTo("raw-refresh-uuid");
 
-        verify(refreshTokenRepository, times(1)).save(any());
-    }
+                verify(refreshTokenRepository, times(1)).save(any());
+        }
 
-    @Test
-    @DisplayName("Deve lançar InvalidCredentialsException quando utilizador não existir")
-    void shouldThrowWhenUserNotFound() {
-        when(userRepository.findByEmail(any())).thenReturn(Optional.empty());
+        @Test
+        @DisplayName("Deve lançar InvalidCredentialsException quando utilizador não existir")
+        void shouldThrowWhenUserNotFound() {
+                when(userRepository.findByEmail(any())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> authService.login(new LoginCommand("desconhecido@shopflow.dev", "senha")))
-                .isInstanceOf(InvalidCredentialsException.class);
+                assertThatThrownBy(() -> authService.login(new LoginCommand("desconhecido@shopflow.dev", "senha")))
+                                .isInstanceOf(InvalidCredentialsException.class);
 
-        verify(tokenProvider, never()).generateAccessToken(any());
-    }
+                verify(tokenProvider, never()).generateAccessToken(any());
+        }
 
-    @Test
-    @DisplayName("Deve lançar InvalidCredentialsException quando a senha não corresponder")
-    void shouldThrowWhenPasswordDoesNotMatch() {
-        User user = User.restore(
-                UUID.randomUUID(),
-                Email.of("cliente@shopflow.dev"),
-                "hashedPass",
-                "Cliente Teste",
-                Role.CUSTOMER,
-                UserStatus.ACTIVE,
-                clock.instant()
-        );
+        @Test
+        @DisplayName("Deve lançar InvalidCredentialsException quando a senha não corresponder")
+        void shouldThrowWhenPasswordDoesNotMatch() {
+                User user = User.restore(
+                                UUID.randomUUID(),
+                                Email.of("cliente@shopflow.dev"),
+                                "hashedPass",
+                                "Cliente Teste",
+                                null, Role.CUSTOMER,
+                                UserStatus.ACTIVE,
+                                clock.instant());
 
-        when(userRepository.findByEmail(any())).thenReturn(Optional.of(user));
-        when(passwordSecurity.matches("senha-errada", "hashedPass")).thenReturn(false);
+                when(userRepository.findByEmail(any())).thenReturn(Optional.of(user));
+                when(passwordSecurity.matches("senha-errada", "hashedPass")).thenReturn(false);
 
-        assertThatThrownBy(() -> authService.login(new LoginCommand("cliente@shopflow.dev", "senha-errada")))
-                .isInstanceOf(InvalidCredentialsException.class);
+                assertThatThrownBy(() -> authService.login(new LoginCommand("cliente@shopflow.dev", "senha-errada")))
+                                .isInstanceOf(InvalidCredentialsException.class);
 
-        verify(tokenProvider, never()).generateAccessToken(any());
-    }
-    
-    @Test
-    @DisplayName("Deve revogar família em nova transação e lançar exceção ao detectar reúso de refresh token")
-    void shouldRevokeFamilyAndThrowOnReuseAttempt() {
-        UUID familyId = UUID.randomUUID();
-        RefreshToken usedToken = RefreshToken.restore(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                "hash-usado",
-                familyId,
-                RefreshTokenStatus.USED,
-                clock.instant().plusSeconds(3600),
-                UUID.randomUUID(),
-                clock.instant().minusSeconds(3600)
-        );
+                verify(tokenProvider, never()).generateAccessToken(any());
+        }
 
-        when(tokenProvider.hashToken("token-reutilizado")).thenReturn("hash-usado");
-        when(refreshTokenRepository.findByTokenHash("hash-usado")).thenReturn(Optional.of(usedToken));
+        @Test
+        @DisplayName("Deve revogar família em nova transação e lançar exceção ao detectar reúso de refresh token")
+        void shouldRevokeFamilyAndThrowOnReuseAttempt() {
+                UUID familyId = UUID.randomUUID();
+                RefreshToken usedToken = RefreshToken.restore(
+                                UUID.randomUUID(),
+                                UUID.randomUUID(),
+                                "hash-usado",
+                                familyId,
+                                RefreshTokenStatus.USED,
+                                clock.instant().plusSeconds(3600),
+                                UUID.randomUUID(),
+                                clock.instant().minusSeconds(3600));
 
-        assertThatThrownBy(() -> authService.refreshToken(new AuthenticateUserUseCase.RefreshCommand("token-reutilizado")))
-                .isInstanceOf(InvalidRefreshTokenException.class);
+                when(tokenProvider.hashToken("token-reutilizado")).thenReturn("hash-usado");
+                when(refreshTokenRepository.findByTokenHash("hash-usado")).thenReturn(Optional.of(usedToken));
 
-        verify(refreshTokenRepository, times(1)).revokeFamilyOnReuseDetection(familyId);
-    }
+                assertThatThrownBy(() -> authService
+                                .refreshToken(new AuthenticateUserUseCase.RefreshCommand("token-reutilizado")))
+                                .isInstanceOf(InvalidRefreshTokenException.class);
+
+                verify(refreshTokenRepository, times(1)).revokeFamilyOnReuseDetection(familyId);
+        }
 }

@@ -1,5 +1,6 @@
 package com.matheuscrz.identity.adapter.in.web;
 
+import com.matheuscrz.identity.domain.exception.CpfAlreadyExistsException;
 import com.matheuscrz.identity.domain.exception.EmailAlreadyExistsException;
 import com.matheuscrz.identity.domain.exception.InvalidCredentialsException;
 import com.matheuscrz.identity.domain.exception.InvalidRefreshTokenException;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.net.URI;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -68,6 +70,22 @@ public class GlobalExceptionHandler {
         }
         problem.setProperty("errors", fieldErrors);
 
+        return problem;
+    }
+
+    @ExceptionHandler(CpfAlreadyExistsException.class)
+    public ProblemDetail handleCpfAlreadyExists(CpfAlreadyExistsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                ex.getMessage());
+        problem.setTitle("CPF já cadastrado");
+        problem.setType(URI.create("https://shopflow.dev/errors/cpf-already-exists"));
+        problem.setProperty("timestamp", Instant.now());
+        problem.setProperty("maskedEmail", ex.getMaskedEmail());
+        problem.setProperty("canRecoverPassword", true);
+        problem.setProperty("message",
+                "Este CPF já possui cadastro. Deseja receber um e-mail de recuperação de senha no endereço "
+                        + ex.getMaskedEmail() + "?");
         return problem;
     }
 }

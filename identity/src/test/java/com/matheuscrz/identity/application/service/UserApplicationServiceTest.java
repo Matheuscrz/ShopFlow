@@ -1,11 +1,15 @@
 package com.matheuscrz.identity.application.service;
 
 import com.matheuscrz.identity.application.port.in.ManageUserUseCase.RegisterUserCommand;
+import com.matheuscrz.identity.application.port.out.CpfSecurityPort;
 import com.matheuscrz.identity.application.port.out.PasswordSecurityPort;
 import com.matheuscrz.identity.application.port.out.UserNotificationEventPort;
 import com.matheuscrz.identity.application.port.out.UserRepositoryPort;
 import com.matheuscrz.identity.domain.event.UserRegisteredEvent;
+import com.matheuscrz.identity.domain.exception.CpfAlreadyExistsException;
 import com.matheuscrz.identity.domain.exception.EmailAlreadyExistsException;
+import com.matheuscrz.identity.domain.exception.InvalidUserDataException;
+import com.matheuscrz.identity.domain.model.Cpf;
 import com.matheuscrz.identity.domain.model.Email;
 import com.matheuscrz.identity.domain.model.Role;
 import com.matheuscrz.identity.domain.model.User;
@@ -21,6 +25,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,15 +38,14 @@ class UserApplicationServiceTest {
 
     @Mock
     private UserRepositoryPort userRepository;
-
     @Mock
     private PasswordSecurityPort passwordSecurity;
-
+    @Mock
+    private CpfSecurityPort cpfSecurity;
     @Mock
     private UserNotificationEventPort notificationEventPort;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-08T12:00:00Z"), ZoneOffset.UTC);
-
     private UserApplicationService userService;
 
     @BeforeEach
@@ -48,16 +53,22 @@ class UserApplicationServiceTest {
         this.userService = new UserApplicationService(
                 userRepository,
                 passwordSecurity,
+                cpfSecurity,
                 notificationEventPort,
-                clock
-        );
+                clock);
     }
 
     @Test
-    @DisplayName("Deve registrar cliente, gerar hash e publicar evento de integração")
+    @DisplayName("Deve registrar cliente com CPF com sucesso, criptografar e emitir evento")
     void shouldRegisterNewUserSuccessfully() {
-        var command = new RegisterUserCommand("novo.dev@shopflow.dev", "SenhaForte#2026", "Matheus Lima");
+        var command = new RegisterUserCommand(
+                "novo.dev@shopflow.dev",
+                "SenhaForte#2026",
+                "Matheus Lima",
+                "52998224725");
 
+        when(cpfSecurity.lookupHash(any(Cpf.class))).thenReturn("fake-lookup-hash-64-bytes");
+        when(userRepository.findByCpfLookupHash("fake-lookup-hash-64-bytes")).thenReturn(Optional.empty());
         when(userRepository.existsByEmail(any())).thenReturn(false);
         when(passwordSecurity.encode("SenhaForte#2026")).thenReturn("$argon2id$hashedPassword");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -66,6 +77,7 @@ class UserApplicationServiceTest {
 
         assertThat(registered.email().value()).isEqualTo("novo.dev@shopflow.dev");
         assertThat(registered.name()).isEqualTo("Matheus Lima");
+        assertThat(registered.cpf().value()).isEqualTo("52998224725");
         assertThat(registered.role()).isEqualTo(Role.CUSTOMER);
         assertThat(registered.status()).isEqualTo(UserStatus.ACTIVE);
 
@@ -75,9 +87,50 @@ class UserApplicationServiceTest {
     }
 
     @Test
+    @DisplayName("Deve lançar CpfAlreadyExistsException com e-mail mascarado quando CPF já estiver cadastrado")
+    void shouldThrowCpfAlreadyExistsExceptionWhenCpfRegistered() {
+        var command = new RegisterUserCommand(
+                "outro.dev@shopflow.dev",
+                "SenhaForte#2026",
+                "Outro Usuario",
+                "52998224725");
+
+        User existingUser = User.restore(
+                UUID.randomUUID(),
+                Email.of("matheus.cruz@shopflow.dev"),
+                "hash",
+                "Matheus Cruz",
+                new Cpf("52998224725"),
+                Role.CUSTOMER,
+                UserStatus.ACTIVE,
+                clock.instant());
+
+        when(cpfSecurity.lookupHash(any(Cpf.class))).thenReturn("fake-lookup-hash-64-bytes");
+        when(userRepository.findByCpfLookupHash("fake-lookup-hash-64-bytes")).thenReturn(Optional.of(existingUser));
+
+        assertThatThrownBy(() -> userService.register(command))
+                .isInstanceOf(CpfAlreadyExistsException.class)
+                .satisfies(ex -> {
+                    CpfAlreadyExistsException cpfEx = (CpfAlreadyExistsException) ex;
+                    assertThat(cpfEx.getMaskedEmail()).isEqualTo("m***@shopflow.dev");
+                });
+
+        verify(userRepository, never()).existsByEmail(any());
+        verify(userRepository, never()).save(any());
+        verify(notificationEventPort, never()).publishUserRegistered(any());
+    }
+
+    @Test
     @DisplayName("Deve lançar EmailAlreadyExistsException quando e-mail já estiver em uso")
     void shouldThrowWhenEmailAlreadyRegistered() {
-        var command = new RegisterUserCommand("existente@shopflow.dev", "SenhaForte#2026", "User");
+        var command = new RegisterUserCommand(
+                "existente@shopflow.dev",
+                "SenhaForte#2026",
+                "User",
+                "52998224725");
+
+        when(cpfSecurity.lookupHash(any(Cpf.class))).thenReturn("fake-lookup-hash-64-bytes");
+        when(userRepository.findByCpfLookupHash("fake-lookup-hash-64-bytes")).thenReturn(Optional.empty());
         when(userRepository.existsByEmail(Email.of("existente@shopflow.dev"))).thenReturn(true);
 
         assertThatThrownBy(() -> userService.register(command))
@@ -85,5 +138,22 @@ class UserApplicationServiceTest {
 
         verify(userRepository, never()).save(any());
         verify(notificationEventPort, never()).publishUserRegistered(any());
+    }
+
+    @Test
+    @DisplayName("Deve falhar e não prosseguir quando o CPF for inválido no comando")
+    void shouldThrowWhenCpfIsInvalid() {
+        var command = new RegisterUserCommand(
+                "novo@shopflow.dev",
+                "SenhaForte#2026",
+                "User",
+                "11111111111");
+
+        assertThatThrownBy(() -> userService.register(command))
+                .isInstanceOf(InvalidUserDataException.class);
+
+        verifyNoInteractions(cpfSecurity);
+        verifyNoInteractions(userRepository);
+        verifyNoInteractions(notificationEventPort);
     }
 }

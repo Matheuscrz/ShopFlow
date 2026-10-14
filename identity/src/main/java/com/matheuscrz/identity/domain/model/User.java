@@ -1,50 +1,44 @@
 package com.matheuscrz.identity.domain.model;
 
 import com.matheuscrz.identity.domain.exception.InvalidUserDataException;
-
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
 public final class User {
-
     public static final int NAME_MAX_LENGTH = 120;
 
     private final UUID id;
     private final Email email;
     private String passwordHash;
     private String name;
+    private Cpf cpf;
     private Role role;
     private UserStatus status;
     private final Instant createdAt;
 
     private User(UUID id, Email email, String passwordHash, String name,
-            Role role, UserStatus status, Instant createdAt) {
+            Cpf cpf, Role role, UserStatus status, Instant createdAt) {
         this.id = Objects.requireNonNull(id, "id");
         this.email = Objects.requireNonNull(email, "email");
         this.passwordHash = requireHash(passwordHash);
         this.name = requireName(name);
+        this.cpf = cpf;
         this.role = Objects.requireNonNull(role, "role");
         this.status = Objects.requireNonNull(status, "status");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
     }
 
     public static User registerCustomer(UUID id, Email email, String passwordHash,
-            String name, Instant now) {
-        return new User(id, email, passwordHash, name,
+            String name, Cpf cpf, Instant now) {
+        return new User(id, email, passwordHash, name, cpf,
                 Role.CUSTOMER, UserStatus.ACTIVE, now);
     }
 
-    public static User createAdmin(UUID id, Email email, String passwordHash,
-            String name, Instant now) {
-        return new User(id, email, passwordHash, name,
-                Role.ADMIN, UserStatus.ACTIVE, now);
-    }
-
     public static User restore(UUID id, Email email, String passwordHash,
-            String name, Role role, UserStatus status,
+            String name, Cpf cpf, Role role, UserStatus status,
             Instant createdAt) {
-        return new User(id, email, passwordHash, name, role, status, createdAt);
+        return new User(id, email, passwordHash, name, cpf, role, status, createdAt);
     }
 
     public boolean canAuthenticate() {
@@ -87,6 +81,10 @@ public final class User {
         return name;
     }
 
+    public Cpf cpf() {
+        return cpf;
+    }
+
     public Role role() {
         return role;
     }
@@ -103,14 +101,10 @@ public final class User {
         if (value == null || value.isBlank()) {
             throw new InvalidUserDataException("O nome é obrigatório.");
         }
-
         String normalized = value.strip();
-
         if (normalized.length() > NAME_MAX_LENGTH) {
-            throw new InvalidUserDataException(
-                    "O nome deve ter no máximo " + NAME_MAX_LENGTH + " caracteres.");
+            throw new InvalidUserDataException("O nome deve ter no máximo " + NAME_MAX_LENGTH + " caracteres.");
         }
-
         return normalized;
     }
 
@@ -118,7 +112,6 @@ public final class User {
         if (value == null || value.isBlank()) {
             throw new InvalidUserDataException("O hash de senha é obrigatório.");
         }
-
         return value;
     }
 
@@ -130,13 +123,5 @@ public final class User {
     @Override
     public int hashCode() {
         return id.hashCode();
-    }
-
-    @Override
-    public String toString() {
-        return "User{id=" + id
-                + ", email=" + email
-                + ", role=" + role
-                + ", status=" + status + "}";
     }
 }

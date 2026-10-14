@@ -16,6 +16,7 @@ export function decodeUserFromToken(token: string): UserSession {
     return {
       id: parsed.sub,
       email: parsed.email,
+      name: parsed.name ?? "",
       role: parsed.role,
     };
   } catch (error) {

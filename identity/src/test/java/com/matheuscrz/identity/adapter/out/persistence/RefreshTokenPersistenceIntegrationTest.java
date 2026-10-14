@@ -2,6 +2,7 @@ package com.matheuscrz.identity.adapter.out.persistence;
 
 import com.matheuscrz.identity.AbstractIntegrationTest;
 import com.matheuscrz.identity.application.port.out.UserRepositoryPort;
+import com.matheuscrz.identity.domain.model.Cpf;
 import com.matheuscrz.identity.domain.model.Email;
 import com.matheuscrz.identity.domain.model.RefreshToken;
 import com.matheuscrz.identity.domain.model.RefreshTokenStatus;
@@ -36,13 +37,13 @@ class RefreshTokenPersistenceIntegrationTest extends AbstractIntegrationTest {
                 Instant now = Instant.now();
                 UUID userId = UUID.randomUUID();
 
-                // 1. Criar e persistir o usuário usando o método de domínio para satisfazer a
-                // FK no banco
+                // 1. Criar e persistir o usuário com CPF válido ("12345678909") e e-mail único
                 User user = User.registerCustomer(
                                 userId,
-                                Email.of("teste.persist@shopflow.dev"),
+                                Email.of("refresh.persist.user@shopflow.dev"),
                                 "$argon2id$v=19$m=65536,t=3,p=1$fakeHashParaTeste",
                                 "Usuário Teste",
+                                new Cpf("07213125001"),
                                 now);
                 userRepository.save(user);
 
@@ -56,13 +57,13 @@ class RefreshTokenPersistenceIntegrationTest extends AbstractIntegrationTest {
                 adapter.save(token1);
                 adapter.save(token2);
 
-                // 3. Validações
+                // 3. Validação de busca
                 Optional<RefreshToken> found = adapter.findByTokenHash("hash_token_1");
                 assertThat(found).isPresent();
                 assertThat(found.get().familyId()).isEqualTo(familyId);
                 assertThat(found.get().status()).isEqualTo(RefreshTokenStatus.ACTIVE);
 
-                // Revoga toda a família
+                // 4. Revoga toda a família
                 adapter.revokeAllByFamilyId(familyId);
 
                 var entities = repository.findAll();

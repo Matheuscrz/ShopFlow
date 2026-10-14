@@ -8,6 +8,7 @@ import { useThemeStore } from "../../../stores/theme-store";
 import { useAuth } from "../hooks/useAuth";
 import { type LoginFormData, loginSchema } from "../schemas/auth.schema";
 import { Link } from "react-router-dom";
+import logo from "../../../assets/Shopflow.svg";
 
 export const LoginPage: React.FC = () => {
   const { login, loading, errorMessage, retryAfter } = useAuth();
@@ -43,12 +44,17 @@ export const LoginPage: React.FC = () => {
         </button>
       </div>
 
-      <div className="w-full max-w-md bg-surface border border-border rounded-xl p-8 shadow-sm">
-        <header className="mb-6 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">
-            Entrar no ShopFlow
-          </h1>
-          <p className="text-sm text-text-muted mt-1">Acesse sua conta</p>
+      <div className="w-full max-w-md bg-surface border border-border rounded-xl p-6 shadow-sm">
+        <header className="mb-4 text-center">
+          <img
+            src={logo}
+            alt="ShopFlow"
+            className="mx-auto -mt-2 mb-1 h-44 w-auto object-contain"
+          />
+
+          <h1 className="text-2xl font-bold tracking-tight">Entrar</h1>
+
+          <p className="mt-1 text-sm text-text-muted">Acesse sua conta</p>
         </header>
 
         {errorMessage && (
