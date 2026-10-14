@@ -1,13 +1,12 @@
 package com.matheuscrz.identity;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class IdentityApplicationTests {
+class IdentityApplicationTests extends AbstractIntegrationTest {
 
-	@Test
-	void contextLoads() {
-	}
-
+    @Test
+    @DisplayName("Garante que o ApplicationContext, migrations do Flyway, Redis e Kafka iniciam perfeitamente")
+    void contextLoads() {
+    }
 }
