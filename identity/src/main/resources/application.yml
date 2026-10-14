@@ -69,11 +69,14 @@ app:
     rate-limit:
       login-max-attempts: 5
       login-window-seconds: 60
+    cpf:
+      encryption-key: ${APP_CPF_ENCRYPTION_KEY:uma-secreta-muito-segura}
+      lookup-key: ${APP_CPF_LOOKUP_KEY:uma-secreta-muito-segura}
 
   mail:
     enabled: true
-    from: ${SMTP_USERNAME}
-    logo-url: ${EMAIL_LOGO_URL}
+    from: ${SMTP_USERNAME:template@shopflow.com}
+    logo-url: ${EMAIL_LOGO_URL:https://i.imgur.com/t8hov9M.png}
 
   frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
 

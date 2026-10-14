@@ -1,5 +1,6 @@
 package com.matheuscrz.identity.adapter.out.security;
 
+import com.matheuscrz.identity.domain.model.Cpf;
 import com.matheuscrz.identity.domain.model.Email;
 import com.matheuscrz.identity.domain.model.Role;
 import com.matheuscrz.identity.domain.model.User;
@@ -38,10 +39,10 @@ class JwtTokenProviderAdapterTest {
                 Email.of("cliente@shopflow.dev"),
                 "hash",
                 "Cliente Teste",
+                new Cpf("52998224725"),
                 Role.CUSTOMER,
                 UserStatus.ACTIVE,
-                fixedClock.instant()
-        );
+                fixedClock.instant());
 
         String token = jwtAdapter.generateAccessToken(user);
         assertThat(token).isNotBlank();
@@ -56,7 +57,6 @@ class JwtTokenProviderAdapterTest {
     @DisplayName("Deve rejeitar tokens adulterados ou malformados")
     void shouldRejectMalformedToken() {
         String tamperedToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.adulterado.assinatura";
-
         assertThatThrownBy(() -> jwtAdapter.parseAndValidate(tamperedToken))
                 .isInstanceOf(SignatureException.class);
     }
@@ -66,7 +66,6 @@ class JwtTokenProviderAdapterTest {
     void shouldGenerateAndHashRefreshToken() {
         String rawToken = jwtAdapter.generateRawRefreshToken();
         assertThat(rawToken).isNotBlank();
-
         String hash = jwtAdapter.hashToken(rawToken);
         assertThat(hash).hasSize(64);
     }

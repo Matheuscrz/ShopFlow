@@ -41,17 +41,13 @@ public class UserController {
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Registrar usuário", description = "Registra um novo usuário com e-mail, senha e nome.")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Usuário registrado com sucesso", content = @Content(mediaType = "application/json")),
-            @ApiResponse(responseCode = "400", description = "Requisição inválida", content = @Content(mediaType = "application/json")),
-            @ApiResponse(responseCode = "409", description = "E-mail já registrado", content = @Content(mediaType = "application/json")),
-    })
+    @Operation(summary = "Registrar usuário", description = "Registra um novo usuário com e-mail, senha, nome e CPF.")
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterUserRequest request) {
         var command = new ManageUserUseCase.RegisterUserCommand(
                 request.email(),
                 request.password(),
-                request.name());
+                request.name(),
+                request.cpf());
         User user = manageUserUseCase.register(command);
         URI location = URI.create("/api/users/" + user.id());
         return ResponseEntity.created(location).body(UserResponse.fromDomain(user));
