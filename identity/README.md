@@ -1,123 +1,292 @@
-# Identity
+# 🛡️ ShopFlow Identity Service
 
-Microserviço responsável pela identidade dos usuários: cadastro, autenticação,
-alteração de senha, endereços, tokens de acesso/renovação e controle de acesso.
+Microsserviço responsável pelo ciclo de vida de usuários, endereços, autenticação, autorização e segurança do ecossistema ShopFlow.
 
-## Estrutura do projeto
+O serviço utiliza **Domain-Driven Design (DDD)** e **Arquitetura Hexagonal**, mantendo o domínio independente de Spring, JPA, bancos de dados e sistemas de mensageria.
+
+## 📋 Sumário
+
+- [🛡️ ShopFlow Identity Service](#️-shopflow-identity-service)
+  - [📋 Sumário](#-sumário)
+  - [🏛️ Arquitetura](#️-arquitetura)
+    - [Princípios](#princípios)
+  - [🔄 Fluxos distribuídos](#-fluxos-distribuídos)
+    - [Transactional Outbox](#transactional-outbox)
+    - [Consumo idempotente](#consumo-idempotente)
+  - [🔒 Segurança](#-segurança)
+    - [Senhas](#senhas)
+    - [Access tokens](#access-tokens)
+    - [Refresh tokens](#refresh-tokens)
+    - [Proteções adicionais](#proteções-adicionais)
+  - [📦 Estrutura de pacotes](#-estrutura-de-pacotes)
+  - [🗄️ Banco de dados](#️-banco-de-dados)
+  - [🧪 Testes](#-testes)
+  - [🚀 Execução local](#-execução-local)
+    - [Pré-requisitos](#pré-requisitos)
+    - [Iniciar a infraestrutura](#iniciar-a-infraestrutura)
+    - [Iniciar a aplicação](#iniciar-a-aplicação)
+  - [⚙️ Variáveis de ambiente](#️-variáveis-de-ambiente)
+  - [✅ Checklist de produção](#-checklist-de-produção)
+
+---
+
+## 🏛️ Arquitetura
+
+A aplicação é organizada em camadas, seguindo o padrão Ports and Adapters:
+
+```mermaid
+flowchart LR
+    Client[Cliente HTTP] --> Web[Adapters de entrada]
+    Web --> InPorts[Input Ports]
+    InPorts --> App[Application Services]
+    App --> Domain[Domínio]
+    App --> OutPorts[Output Ports]
+
+    OutPorts --> DB[PostgreSQL]
+    OutPorts --> Redis[Redis]
+    OutPorts --> Kafka[Kafka]
+    OutPorts --> Mail[SMTP / Serviço de e-mail]
+```
+
+### Princípios
+
+- **Domínio independente:** não utiliza anotações Spring ou JPA.
+- **Casos de uso explícitos:** a camada de aplicação coordena as operações.
+- **Ports and Adapters:** integrações externas dependem de interfaces.
+- **Mapeamento explícito:** DTOs, entidades JPA e objetos de domínio são convertidos por mappers.
+- **Limites transacionais:** cada caso de uso respeita a fronteira do aggregate correspondente.
+
+---
+
+## 🔄 Fluxos distribuídos
+
+### Transactional Outbox
+
+Os eventos são persistidos na mesma transação que altera os dados de domínio. Um dispatcher publica posteriormente esses eventos no Kafka.
+
+```mermaid
+sequenceDiagram
+    participant API as API REST
+    participant App as Application Service
+    participant DB as PostgreSQL
+    participant Outbox as Outbox Dispatcher
+    participant Kafka as Apache Kafka
+
+    API->>App: Executa caso de uso
+    App->>DB: Persiste domínio e evento Outbox
+    DB-->>App: Commit da transação
+    App-->>API: Resposta HTTP
+
+    Outbox->>DB: Busca eventos pendentes
+    Outbox->>Kafka: Publica evento
+    Outbox->>DB: Marca evento como publicado
+```
+
+Esse padrão evita o problema de **dual-write**, no qual a alteração no banco e a publicação da mensagem poderiam apresentar resultados inconsistentes.
+
+### Consumo idempotente
+
+Eventos consumidos são registrados para impedir processamento duplicado.
+
+```mermaid
+flowchart TD
+    Event[Evento Kafka] --> Check{Evento já processado?}
+    Check -- Sim --> Ignore[Ignora mensagem]
+    Check -- Não --> Process[Processa evento]
+    Process --> Register[Registra evento consumido]
+    Register --> Done[Finaliza processamento]
+```
+
+A limpeza de eventos antigos é realizada pelo `ConsumedEventsCleanupScheduler`.
+
+---
+
+## 🔒 Segurança
+
+### Senhas
+
+As senhas devem ser armazenadas utilizando **Argon2id**, por meio do adaptador de segurança da aplicação.
+
+Configuração recomendada:
+
+- Salt: 16 bytes
+- Hash: 32 bytes
+- Paralelismo: 1
+- Memória: 64 MiB
+- Iterações: 3
+
+A configuração efetiva deve ser validada na implementação de `Argon2PasswordSecurityAdapter`.
+
+### Access tokens
+
+- Assinatura HMAC com **HS256**.
+- Validade curta, por padrão, de 15 minutos.
+- Validação estrita do algoritmo informado no token.
+- Tokens devem ser mantidos apenas em memória no cliente.
+- Não armazenar access tokens em `localStorage` ou `sessionStorage`.
+
+### Refresh tokens
+
+- Expostos exclusivamente por cookie HTTP.
+- Devem utilizar `HttpOnly`.
+- `Secure` deve ser habilitado em produção.
+- `SameSite` deve ser configurado de acordo com o cenário de integração.
+- Apenas o hash do token deve ser armazenado no banco de dados.
+
+### Proteções adicionais
+
+- Rate limiting distribuído com Redis.
+- Blacklist de tokens por `jti` ou usuário.
+- Normalização centralizada de entradas.
+- Queries parametrizadas via Spring Data.
+- Validação de ownership para evitar IDOR.
+- Tratamento global de exceções sem exposição de stack traces.
+
+> Cookies de autenticação devem ser acompanhados de uma estratégia adequada contra CSRF quando aplicável.
+
+---
+
+## 📦 Estrutura de pacotes
 
 ```text
-src/main/java/com/matheuscrz/identity
-├── IdentityApplication.java       # ponto de entrada da aplicação Spring Boot
-├── adapter
-│   ├── in/web                    # entrada HTTP (controllers, DTOs e erros)
-│   └── out
-│       ├── persistence           # implementação da persistência JPA
-│       └── security              # hash de senha e tokens JWT
+com.matheuscrz.identity
+├── domain
+│   ├── model
+│   ├── event
+│   └── exception
 ├── application
 │   ├── port
-│   │   ├── in                   # casos de uso expostos pela aplicação
-│   │   └── out                  # contratos das dependências externas
-│   └── service                  # orquestração dos casos de uso
-├── config                         # configurações do Spring e infraestrutura
-└── domain
-├── exception                # exceções e regras de erro do domínio
-├── model                    # entidades, value objects, enums
-└── service                   # serviços de domínio (quando necessários)
+│   │   ├── in
+│   │   └── out
+│   └── service
+├── adapter
+│   ├── in
+│   │   ├── web
+│   │   └── messaging
+│   └── out
+│       ├── persistence
+│       ├── redis
+│       ├── security
+│       ├── messaging
+│       └── mail
+└── config
 ```
 
-## Arquitetura
+| Pacote | Responsabilidade |
+|---|---|
+| `domain.model` | Aggregates, entidades e value objects |
+| `domain.event` | Eventos de domínio |
+| `domain.exception` | Exceções de negócio |
+| `application.port.in` | Casos de uso de entrada |
+| `application.port.out` | Contratos para integrações externas |
+| `application.service` | Orquestração dos casos de uso |
+| `adapter.in.web` | Controllers, DTOs e filtros HTTP |
+| `adapter.in.messaging` | Consumidores Kafka |
+| `adapter.out.persistence` | JPA, repositories e mappers |
+| `adapter.out.redis` | Rate limiting, blacklist e recuperação |
+| `adapter.out.security` | JWT e hashing de senhas |
+| `adapter.out.messaging` | Outbox e publicação Kafka |
+| `config` | Configurações do Spring Boot |
 
-O projeto segue uma arquitetura hexagonal (Ports and Adapters):
+---
+
+## 🗄️ Banco de dados
+
+As migrações são gerenciadas pelo Flyway em:
 
 ```text
-HTTP -> adapter.in.web -> application.service -> application.port.out
-├── persistence
-└── security
+src/main/resources/db/migration
 ```
 
-- **Domínio**: contém regras e conceitos centrais, sem depender de frameworks.
-- **Aplicação**: define os casos de uso e coordena o domínio.
-- **Portas de entrada**: interfaces dos casos de uso (`application/port/in`).
-- **Portas de saída**: contratos para banco, tokens e segurança (`port/out`).
-- **Adaptadores de entrada**: controllers REST e objetos de requisição/resposta.
-- **Adaptadores de saída**: implementações JPA, Argon2 e JWT.
+Migrações principais:
 
-## Componentes principais
+1. `V1__create_identity_tables.sql`
+   - `users`
+   - `user_addresses`
+   - `refresh_tokens`
 
-### Entrada HTTP
+2. `V2__create_outbox_table.sql`
+   - Tabela de eventos do Transactional Outbox.
 
-- `AuthController`: login, renovação de token e operações de autenticação.
-- `UserController`: cadastro e gerenciamento de usuários.
-- `UserAddressController`: gerenciamento dos endereços do usuário.
-- `GlobalExceptionHandler`: converte exceções em respostas HTTP padronizadas.
-- `ErrorTypes`: classificação dos erros retornados pela API.
-- `dto/`: contratos públicos da API; não expõem diretamente entidades internas.
+3. `V3__harden_outbox.sql`
+   - Índices e restrições para leitura concorrente.
 
-### Casos de uso
+4. `V4__create_consumed_events_table.sql`
+   - Rastreamento de eventos consumidos.
 
-- `AuthenticateUserUseCase`: autenticação e ciclo de vida dos tokens.
-- `ManageUserUseCase`: criação, consulta, atualização e operações de usuário.
-- `ManageUserAddressUseCase`: criação, alteração e remoção de endereços.
-- `AuthApplicationService`, `UserApplicationService` e
-`UserAddressApplicationService`: implementam esses fluxos.
-- `UserInputNormalizer`: normaliza entradas antes da aplicação das regras.
+---
 
-### Domínio
+## 🧪 Testes
 
-- `User`: agregado principal do usuário.
-- `Email`: value object que valida e representa e-mails.
-- `UserAddress`: endereço associado ao usuário.
-- `RefreshToken`: token persistido para renovação de sessão.
-- `Role` e `UserStatus`: permissões e estado do usuário.
-- `RefreshTokenStatus`: estado do token de renovação.
-- `DomainException` e subclasses: erros de negócio, como credenciais inválidas, e-mail duplicado ou token inválido.
+A estratégia de testes inclui:
 
-### Persistência
+- **Testes unitários:** domínio, value objects e serviços de aplicação.
+- **Testes de arquitetura:** validação das dependências entre camadas com ArchUnit.
+- **Testes de integração:** PostgreSQL, Redis e Flyway utilizando Testcontainers.
+- **Testes de segurança:** tokens inválidos, expiração, blacklist e rate limiting.
 
-- Entidades JPA: `UserJpaEntity`, `UserAddressJpaEntity` e
-`RefreshTokenJpaEntity`, com `BaseJpaEntity` para dados compartilhados.
-- Repositórios Spring Data: interfaces `SpringData*Repository`.
-- Adaptadores: `UserPersistenceAdapter`, `UserAddressPersistenceAdapter` e `RefreshTokenPersistenceAdapter`.
-- Mappers: convertem entre modelos de domínio e entidades JPA.
-- `db/migration/V1__create_identity_tables.sql`: esquema inicial do banco,executado pelo mecanismo de migrations configurado na aplicação.
+Executar a suíte completa:
 
-### Segurança
+```bash
+./gradlew test
+```
 
-- `Argon2PasswordSecurityAdapter`: gera e verifica hashes de senha; senhas não devem ser armazenadas em texto puro.
-- `JwtTokenProviderAdapter`: emite e valida tokens JWT.
-- `SecurityConfig`: define autenticação, autorização e rotas públicas/protegidas.
+---
 
-## Configuração
+## 🚀 Execução local
 
-- `application.yml`: configurações externas da aplicação, banco e segurança.
-- `ClockConfig`: fornece um relógio controlável para regras dependentes de tempo.
-- `JpaAuditingConfig`: habilita auditoria das entidades persistidas.
+### Pré-requisitos
 
-Não versione segredos, chaves JWT ou senhas de banco. Use variáveis de ambiente ou um gerenciador de segredos para esses valores.
+- Java 21 ou superior
+- Docker
+- Docker Compose
+- Gradle Wrapper
 
-## Testes
+### Iniciar a infraestrutura
 
-- `ArchitectureTest`: verifica as regras de dependência entre camadas.
-- `IdentityApplicationTests`: valida o carregamento básico da aplicação.
-- Testes de segurança: cobrem Argon2 e emissão/validação de JWT.
-- `AuthApplicationServiceTest`: cobre o fluxo de autenticação.
-- `EmailTest` e `UserTest`: cobrem regras do domínio.
+A partir do diretório de infraestrutura:
 
-Execute os testes com o gerenciador de build configurado no projeto. Antes de alterar uma camada, mantenha suas dependências apontando para dentro: controllers dependem de portas de entrada, serviços dependem de portas, e adaptadores implementam portas sem vazar detalhes de infraestrutura para o domínio.
+```bash
+cd ../infra
+docker compose up -d postgres redis kafka
+```
 
-## Fluxo típico de autenticação
+### Iniciar a aplicação
 
-1. O cliente envia credenciais ao endpoint de autenticação.
-2. O controller transforma a requisição em dados de entrada.
-3. O serviço busca o usuário pela porta de persistência.
-4. A porta de segurança verifica a senha com Argon2.
-5. O provedor JWT emite o token de acesso e o refresh token é persistido.
-6. Exceções de domínio são tratadas pelo `GlobalExceptionHandler`.
+A partir do diretório `identity`:
 
-## Convenções para evolução
+```bash
+./gradlew bootRun
+```
 
-- Coloque regras de negócio em modelos/serviços de domínio, não em controllers.
-- Adicione novos recursos por meio de uma porta de entrada e um caso duso.
-- Mantenha DTOs, entidades JPA e modelos de domínio separados.
-- Crie uma migration nova para cada alteração de banco; não edite migrations já aplicadas em ambientes compartilhados.
-- Adicione testes unitários para regras novas e testes de arquitetura quando aestrutura de dependências for alterada.
+---
+
+## ⚙️ Variáveis de ambiente
+
+| Variável | Descrição | Padrão local |
+|---|---|---|
+| `SPRING_DATASOURCE_URL` | URL do PostgreSQL | `jdbc:postgresql://localhost:5432/shopflow_identity` |
+| `SPRING_DATASOURCE_USERNAME` | Usuário do banco | `postgres` |
+| `SPRING_DATASOURCE_PASSWORD` | Senha do banco | `postgres` |
+| `SPRING_DATA_REDIS_HOST` | Host do Redis | `localhost` |
+| `SPRING_DATA_REDIS_PORT` | Porta do Redis | `6379` |
+| `SPRING_KAFKA_BOOTSTRAP_SERVERS` | Servidores Kafka | `localhost:9092` |
+| `APP_JWT_SECRET` | Segredo HMAC de, no mínimo, 256 bits | Obrigatória |
+| `APP_JWT_ACCESS_TOKEN_TTL_MS` | Validade do access token | `900000` |
+| `APP_JWT_COOKIE_SECURE` | Habilita `Secure` no cookie | `false` local / `true` produção |
+
+> Segredos reais não devem ser versionados. Utilize variáveis de ambiente ou um gerenciador de segredos.
+
+---
+
+## ✅ Checklist de produção
+
+- [ ] Configurar `APP_JWT_SECRET` com alta entropia.
+- [ ] Habilitar HTTPS.
+- [ ] Habilitar `APP_JWT_COOKIE_SECURE`.
+- [ ] Configurar CORS explicitamente.
+- [ ] Validar política de CSRF.
+- [ ] Monitorar falhas do Outbox Dispatcher.
+- [ ] Configurar retenção da tabela de eventos consumidos.
+- [ ] Não expor stack traces nas respostas HTTP.
+- [ ] Não registrar tokens ou senhas nos logs.
