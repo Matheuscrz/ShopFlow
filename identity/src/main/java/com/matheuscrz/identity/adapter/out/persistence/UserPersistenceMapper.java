@@ -9,29 +9,33 @@ public final class UserPersistenceMapper {
     private UserPersistenceMapper() {
     }
 
-    static User toDomain(UserJpaEntity entity, Cpf cpf) {
+    static User toDomain(UserJpaEntity entity, Email email, Cpf cpf) {
         return User.restore(
                 entity.getId(),
-                Email.of(entity.getEmail()),
+                email,
                 entity.getPasswordHash(),
                 entity.getName(),
                 cpf,
                 entity.getRole(),
                 entity.getStatus(),
-                entity.getCreatedAt()
-        );
+                entity.getCreatedAt());
     }
 
-    static UserJpaEntity toEntity(User user, String ciphertext, String lookupHash) {
+    static UserJpaEntity toEntity(
+            User user,
+            String emailCiphertext,
+            String emailLookupHash,
+            String cpfCiphertext,
+            String cpfLookupHash) {
         return new UserJpaEntity(
                 user.id(),
-                user.email().value(),
+                emailCiphertext,
+                emailLookupHash,
                 user.passwordHash(),
                 user.name(),
                 user.role(),
                 user.status(),
-                ciphertext,
-                lookupHash
-        );
+                cpfCiphertext,
+                cpfLookupHash);
     }
 }

@@ -8,17 +8,17 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
 import java.util.UUID;
 
 @Entity
 @Table(name = "users")
 public class UserJpaEntity extends BaseJpaEntity {
 
-    @Column(nullable = false, unique = true, length = 254)
-    private String email;
+    @Column(name = "email_ciphertext", nullable = false, columnDefinition = "TEXT")
+    private String emailCiphertext;
+
+    @Column(name = "email_lookup_hash", nullable = false, length = 64, unique = true)
+    private String emailLookupHash;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
@@ -34,21 +34,28 @@ public class UserJpaEntity extends BaseJpaEntity {
     @Column(nullable = false, length = 20)
     private UserStatus status;
 
-    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     @Column(name = "cpf_ciphertext", columnDefinition = "TEXT")
     private String cpfCiphertext;
 
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "cpf_lookup_hash", columnDefinition = "CHAR(64)", length = 64)
+    @Column(name = "cpf_lookup_hash", length = 64)
     private String cpfLookupHash;
 
     protected UserJpaEntity() {
     }
 
-    UserJpaEntity(UUID id, String email, String passwordHash, String name,
-                  Role role, UserStatus status, String cpfCiphertext, String cpfLookupHash) {
+    UserJpaEntity(
+            UUID id,
+            String emailCiphertext,
+            String emailLookupHash,
+            String passwordHash,
+            String name,
+            Role role,
+            UserStatus status,
+            String cpfCiphertext,
+            String cpfLookupHash) {
         super(id);
-        this.email = email;
+        this.emailCiphertext = emailCiphertext;
+        this.emailLookupHash = emailLookupHash;
         this.passwordHash = passwordHash;
         this.name = name;
         this.role = role;
@@ -57,13 +64,42 @@ public class UserJpaEntity extends BaseJpaEntity {
         this.cpfLookupHash = cpfLookupHash;
     }
 
-    String getEmail() { return email; }
-    String getPasswordHash() { return passwordHash; }
-    String getName() { return name; }
-    Role getRole() { return role; }
-    UserStatus getStatus() { return status; }
-    String getCpfCiphertext() { return cpfCiphertext; }
-    String getCpfLookupHash() { return cpfLookupHash; }
+    String getEmailCiphertext() {
+        return emailCiphertext;
+    }
+
+    String getEmailLookupHash() {
+        return emailLookupHash;
+    }
+
+    String getPasswordHash() {
+        return passwordHash;
+    }
+
+    String getName() {
+        return name;
+    }
+
+    Role getRole() {
+        return role;
+    }
+
+    UserStatus getStatus() {
+        return status;
+    }
+
+    String getCpfCiphertext() {
+        return cpfCiphertext;
+    }
+
+    String getCpfLookupHash() {
+        return cpfLookupHash;
+    }
+
+    void updateEmail(String ciphertext, String lookupHash) {
+        this.emailCiphertext = ciphertext;
+        this.emailLookupHash = lookupHash;
+    }
 
     void updateCpf(String ciphertext, String lookupHash) {
         this.cpfCiphertext = ciphertext;
@@ -71,8 +107,8 @@ public class UserJpaEntity extends BaseJpaEntity {
     }
 
     void applyChanges(User user) {
-        this.name = user.name();
         this.passwordHash = user.passwordHash();
+        this.name = user.name();
         this.role = user.role();
         this.status = user.status();
     }

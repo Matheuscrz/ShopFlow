@@ -1,6 +1,9 @@
 package com.matheuscrz.identity.adapter.out.persistence;
 
+import com.matheuscrz.identity.adapter.out.persistence.converter.SensitiveDataConverter;
+import com.matheuscrz.identity.domain.model.UserAddress;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
@@ -10,8 +13,6 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.matheuscrz.identity.domain.model.UserAddress;
-
 @Entity
 @Table(name = "user_addresses")
 public class UserAddressJpaEntity extends BaseJpaEntity {
@@ -20,34 +21,42 @@ public class UserAddressJpaEntity extends BaseJpaEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private UserJpaEntity user;
 
-    @Column(name = "zip_code", nullable = false, length = 20)
+    @Convert(converter = SensitiveDataConverter.class)
+    @Column(name = "zip_code_ciphertext", nullable = false, columnDefinition = "TEXT")
     private String zipCode;
 
-    @Column(nullable = false, length = 150)
+    @Convert(converter = SensitiveDataConverter.class)
+    @Column(name = "street_ciphertext", nullable = false, columnDefinition = "TEXT")
     private String street;
 
-    @Column(nullable = false, length = 20)
+    @Convert(converter = SensitiveDataConverter.class)
+    @Column(name = "number_ciphertext", nullable = false, columnDefinition = "TEXT")
     private String number;
 
-    @Column(length = 150)
+    @Convert(converter = SensitiveDataConverter.class)
+    @Column(name = "complement_ciphertext", columnDefinition = "TEXT")
     private String complement;
 
-    @Column(nullable = false, length = 100)
+    @Convert(converter = SensitiveDataConverter.class)
+    @Column(name = "neighborhood_ciphertext", nullable = false, columnDefinition = "TEXT")
     private String neighborhood;
 
-    @Column(nullable = false, length = 100)
+    @Convert(converter = SensitiveDataConverter.class)
+    @Column(name = "city_ciphertext", nullable = false, columnDefinition = "TEXT")
     private String city;
 
-    @Column(nullable = false, length = 100)
+    @Convert(converter = SensitiveDataConverter.class)
+    @Column(name = "state_ciphertext", nullable = false, columnDefinition = "TEXT")
     private String state;
 
-    @Column(nullable = false, length = 100)
+    @Convert(converter = SensitiveDataConverter.class)
+    @Column(name = "country_ciphertext", nullable = false, columnDefinition = "TEXT")
     private String country;
 
     protected UserAddressJpaEntity() {
     }
 
-    UserAddressJpaEntity(UUID id, UserJpaEntity user, String zipCode,
+    public UserAddressJpaEntity(UUID id, UserJpaEntity user, String zipCode,
             String street, String number, String complement,
             String neighborhood, String city, String state,
             String country, Instant createdAt) {
@@ -63,43 +72,43 @@ public class UserAddressJpaEntity extends BaseJpaEntity {
         this.country = country;
     }
 
-    UserJpaEntity getUser() {
+    public UserJpaEntity getUser() {
         return user;
     }
 
-    String getZipCode() {
+    public String getZipCode() {
         return zipCode;
     }
 
-    String getStreet() {
+    public String getStreet() {
         return street;
     }
 
-    String getNumber() {
+    public String getNumber() {
         return number;
     }
 
-    String getComplement() {
+    public String getComplement() {
         return complement;
     }
 
-    String getNeighborhood() {
+    public String getNeighborhood() {
         return neighborhood;
     }
 
-    String getCity() {
+    public String getCity() {
         return city;
     }
 
-    String getState() {
+    public String getState() {
         return state;
     }
 
-    String getCountry() {
+    public String getCountry() {
         return country;
     }
 
-    void applyChanges(UserAddress address) {
+    public void applyChanges(UserAddress address) {
         this.zipCode = address.zipCode();
         this.street = address.street();
         this.number = address.number();

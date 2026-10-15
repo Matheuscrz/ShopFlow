@@ -22,7 +22,7 @@ app:
     rate-limit:
       login-max-attempts: 5
       login-window-seconds: 60
-    cpf:
+    data-protection:
       encryption-key: "chave-teste-criptografia-32bytes-ok!"
       lookup-key: "chave-teste-hmac-sha256-secreta-ok!"
   outbox:

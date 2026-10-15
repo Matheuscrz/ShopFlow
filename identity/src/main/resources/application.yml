@@ -69,9 +69,9 @@ app:
     rate-limit:
       login-max-attempts: 5
       login-window-seconds: 60
-    cpf:
-      encryption-key: ${APP_CPF_ENCRYPTION_KEY:uma-secreta-muito-segura}
-      lookup-key: ${APP_CPF_LOOKUP_KEY:uma-secreta-muito-segura}
+    data-protection:
+      encryption-key: ${APP_DATA_ENCRYPTION_KEY:${APP_DATA_PROTECTION_ENCRYPTION_KEY:uma-secreta-muito-segura}}
+      lookup-key: ${APP_DATA_LOOKUP_KEY:${APP_DATA_PROTECTION_LOOKUP_KEY:uma-secreta-muito-segura}}
 
   mail:
     enabled: true

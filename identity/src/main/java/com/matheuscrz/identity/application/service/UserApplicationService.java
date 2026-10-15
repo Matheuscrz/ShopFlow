@@ -1,8 +1,8 @@
 package com.matheuscrz.identity.application.service;
 
 import com.matheuscrz.identity.application.port.in.ManageUserUseCase;
-import com.matheuscrz.identity.application.port.out.CpfSecurityPort;
 import com.matheuscrz.identity.application.port.out.PasswordSecurityPort;
+import com.matheuscrz.identity.application.port.out.SensitiveDataSecurityPort;
 import com.matheuscrz.identity.application.port.out.UserNotificationEventPort;
 import com.matheuscrz.identity.application.port.out.UserRepositoryPort;
 import com.matheuscrz.identity.domain.event.PasswordChangedEvent;
@@ -26,19 +26,19 @@ public class UserApplicationService implements ManageUserUseCase {
 
     private final UserRepositoryPort userRepository;
     private final PasswordSecurityPort passwordSecurity;
-    private final CpfSecurityPort cpfSecurity;
+    private final SensitiveDataSecurityPort sensitiveDataSecurity;
     private final UserNotificationEventPort notificationEventPort;
     private final Clock clock;
 
     public UserApplicationService(
             UserRepositoryPort userRepository,
             PasswordSecurityPort passwordSecurity,
-            CpfSecurityPort cpfSecurity,
+            SensitiveDataSecurityPort sensitiveDataSecurity,
             UserNotificationEventPort notificationEventPort,
             Clock clock) {
         this.userRepository = userRepository;
         this.passwordSecurity = passwordSecurity;
-        this.cpfSecurity = cpfSecurity;
+        this.sensitiveDataSecurity = sensitiveDataSecurity;
         this.notificationEventPort = notificationEventPort;
         this.clock = clock;
     }
@@ -47,7 +47,7 @@ public class UserApplicationService implements ManageUserUseCase {
     @Transactional
     public User register(RegisterUserCommand command) {
         Cpf cpf = new Cpf(command.cpf());
-        String lookupHash = cpfSecurity.lookupHash(cpf);
+        String lookupHash = sensitiveDataSecurity.generateLookupHash(cpf.value());
 
         userRepository.findByCpfLookupHash(lookupHash).ifPresent(existingUser -> {
             throw new CpfAlreadyExistsException(existingUser.email().masked());
@@ -55,7 +55,6 @@ public class UserApplicationService implements ManageUserUseCase {
 
         String normalizedEmail = UserInputNormalizer.email(command.email());
         Email email = Email.of(normalizedEmail);
-
         if (userRepository.existsByEmail(email)) {
             throw new EmailAlreadyExistsException(email.value());
         }
