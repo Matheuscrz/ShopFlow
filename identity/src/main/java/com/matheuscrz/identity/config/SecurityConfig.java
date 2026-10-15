@@ -31,9 +31,9 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 
-// import org.springframework.web.cors.CorsConfiguration;
-// import org.springframework.web.cors.CorsConfigurationSource;
-// import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 import java.util.List;
@@ -62,13 +62,22 @@ public class SecurityConfig {
         @Value("${app.cors.allowed-origins}")
         private String allowedOrigins;
 
+        @Value("${app.cors.enabled:false}")
+        private boolean corsEnabled;
+
         @Bean
         public SecurityFilterChain securityFilterChain(
                         HttpSecurity http,
                         LoginRateLimitFilter rateLimitFilter,
                         JwtBlacklistValidationFilter blacklistFilter) throws Exception {
+
+                if (corsEnabled) {
+                        http.cors(Customizer.withDefaults());
+                } else {
+                        http.cors(AbstractHttpConfigurer::disable);
+                }
+
                 http
-                                .cors(Customizer.withDefaults())
                                 .csrf(AbstractHttpConfigurer::disable)
                                 .httpBasic(AbstractHttpConfigurer::disable)
                                 .formLogin(AbstractHttpConfigurer::disable)
@@ -138,37 +147,31 @@ public class SecurityConfig {
                 );
         }
 
-        // @Bean
-        // CorsConfigurationSource corsConfigurationSource() {
-        // CorsConfiguration configuration = new CorsConfiguration();
+        @Bean
+        CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
 
-        // configuration.setAllowedOriginPatterns(
-        // Arrays.asList(allowedOrigins.split(",")));
+                configuration.setAllowedOrigins(
+                                Arrays.stream(allowedOrigins.split(","))
+                                                .map(String::trim)
+                                                .filter(origin -> !origin.isBlank())
+                                                .toList());
 
-        // configuration.setAllowedMethods(List.of(
-        // "GET",
-        // "POST",
-        // "PUT",
-        // "PATCH",
-        // "DELETE",
-        // "OPTIONS"));
+                configuration.setAllowedMethods(List.of(
+                                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
-        // configuration.setAllowedHeaders(List.of(
-        // "Authorization",
-        // "Content-Type",
-        // "Accept",
-        // "Origin",
-        // "X-Requested-With"));
+                configuration.setAllowedHeaders(List.of(
+                                "Authorization",
+                                "Content-Type",
+                                "Accept",
+                                "Origin",
+                                "X-Requested-With"));
 
-        // // Necessário para o navegador enviar o cookie HttpOnly.
-        // configuration.setAllowCredentials(true);
+                configuration.setAllowCredentials(true);
+                configuration.setMaxAge(3600L);
 
-        // configuration.setMaxAge(3600L);
-
-        // UrlBasedCorsConfigurationSource source = new
-        // UrlBasedCorsConfigurationSource();
-        // source.registerCorsConfiguration("/**", configuration);
-
-        // return source;
-        // }
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", configuration);
+                return source;
+        }
 }

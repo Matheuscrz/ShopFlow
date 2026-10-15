@@ -3,6 +3,7 @@ package com.matheuscrz.identity.adapter.in.web;
 import com.matheuscrz.identity.AbstractIntegrationTest;
 import com.matheuscrz.identity.adapter.in.web.dto.RegisterUserRequest;
 import com.matheuscrz.identity.application.port.out.UserRepositoryPort;
+import com.matheuscrz.identity.application.port.out.SensitiveDataSecurityPort;
 import com.matheuscrz.identity.domain.model.Email;
 import com.matheuscrz.identity.domain.model.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,9 @@ class UserRegistrationIntegrationTest extends AbstractIntegrationTest {
         @Autowired
         private JdbcTemplate jdbcTemplate;
 
+        @Autowired
+        private SensitiveDataSecurityPort sensitiveDataSecurity;
+
         @BeforeEach
         void cleanUp() {
                 jdbcTemplate.execute("DELETE FROM users");
@@ -42,7 +46,8 @@ class UserRegistrationIntegrationTest extends AbstractIntegrationTest {
                                 "usuario.real@shopflow.dev",
                                 "SenhaForte#2026",
                                 "Matheus Dev",
-                                "52998224725");
+                                "52998224725",
+                                "11999998888");
 
                 ResponseEntity<Map> response = restTemplate.postForEntity(
                                 "/api/users/register",
@@ -61,13 +66,21 @@ class UserRegistrationIntegrationTest extends AbstractIntegrationTest {
 
                 // 2. Validação direta no PostgreSQL para garantir que o CPF NÃO está em texto
                 // puro
-                Map<String, Object> rawDbRow = jdbcTemplate.queryForMap(
-                                "SELECT cpf_ciphertext, cpf_lookup_hash FROM users WHERE email = ?",
-                                "usuario.real@shopflow.dev");
+                String emailLookupHash = sensitiveDataSecurity.generateLookupHash("usuario.real@shopflow.dev");
 
+                Map<String, Object> rawDbRow = jdbcTemplate.queryForMap(
+                                """
+                                                SELECT email_ciphertext, cpf_ciphertext, cpf_lookup_hash
+                                                FROM users
+                                                WHERE email_lookup_hash = ?
+                                                """,
+                                emailLookupHash);
+
+                String emailCiphertext = (String) rawDbRow.get("email_ciphertext");
                 String ciphertext = (String) rawDbRow.get("cpf_ciphertext");
                 String lookupHash = (String) rawDbRow.get("cpf_lookup_hash");
 
+                assertThat(emailCiphertext).isNotBlank();
                 assertThat(ciphertext).isNotBlank();
                 assertThat(ciphertext).doesNotContain("52998224725");
                 assertThat(lookupHash).hasSize(64);
@@ -81,7 +94,8 @@ class UserRegistrationIntegrationTest extends AbstractIntegrationTest {
                                 "titular@shopflow.dev",
                                 "SenhaForte#2026",
                                 "Titular Conta",
-                                "52998224725");
+                                "52998224725",
+                                "11999998888");
                 restTemplate.postForEntity("/api/users/register", firstRequest, Map.class);
 
                 // Segundo cadastro com outro e-mail, mas MESMO CPF
@@ -89,7 +103,8 @@ class UserRegistrationIntegrationTest extends AbstractIntegrationTest {
                                 "outro.email@shopflow.dev",
                                 "SenhaForte#2026",
                                 "Tentativa Fraude",
-                                "529.982.247-25");
+                                "529.982.247-25",
+                                "11988887777");
 
                 ResponseEntity<Map> response = restTemplate.postForEntity(
                                 "/api/users/register",
@@ -113,7 +128,8 @@ class UserRegistrationIntegrationTest extends AbstractIntegrationTest {
                                 "duplicado@shopflow.dev",
                                 "SenhaForte#2026",
                                 "Primeiro",
-                                "52998224725");
+                                "52998224725",
+                                "11999998888");
                 restTemplate.postForEntity("/api/users/register", firstRequest, Map.class);
 
                 // Segundo cadastro: mesmo e-mail, mas com outro CPF matematicamente válido
@@ -121,7 +137,8 @@ class UserRegistrationIntegrationTest extends AbstractIntegrationTest {
                                 "duplicado@shopflow.dev",
                                 "OutraSenha#2026",
                                 "Segundo",
-                                "11144477735");
+                                "11144477735",
+                                "11988887777");
 
                 ResponseEntity<Map> response = restTemplate.postForEntity(
                                 "/api/users/register",

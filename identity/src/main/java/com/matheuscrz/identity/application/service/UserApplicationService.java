@@ -46,6 +46,8 @@ public class UserApplicationService implements ManageUserUseCase {
     @Override
     @Transactional
     public User register(RegisterUserCommand command) {
+        String normalizedPhone = UserInputNormalizer.phone(command.phone());
+
         Cpf cpf = new Cpf(command.cpf());
         String lookupHash = sensitiveDataSecurity.generateLookupHash(cpf.value());
 
@@ -69,6 +71,7 @@ public class UserApplicationService implements ManageUserUseCase {
                 passwordHash,
                 normalizedName,
                 cpf,
+                normalizedPhone,
                 clock.instant());
 
         User savedUser = userRepository.save(newUser);

@@ -8,6 +8,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+
 import java.util.UUID;
 
 @Entity
@@ -17,7 +18,7 @@ public class UserJpaEntity extends BaseJpaEntity {
     @Column(name = "email_ciphertext", nullable = false, columnDefinition = "TEXT")
     private String emailCiphertext;
 
-    @Column(name = "email_lookup_hash", nullable = false, length = 64, unique = true)
+    @Column(name = "email_lookup_hash", nullable = false, length = 64)
     private String emailLookupHash;
 
     @Column(name = "password_hash", nullable = false)
@@ -40,10 +41,16 @@ public class UserJpaEntity extends BaseJpaEntity {
     @Column(name = "cpf_lookup_hash", length = 64)
     private String cpfLookupHash;
 
+    @Column(name = "phone_ciphertext", columnDefinition = "TEXT")
+    private String phoneCiphertext;
+
+    @Column(name = "phone_lookup_hash", length = 64)
+    private String phoneLookupHash;
+
     protected UserJpaEntity() {
     }
 
-    UserJpaEntity(
+    public UserJpaEntity(
             UUID id,
             String emailCiphertext,
             String emailLookupHash,
@@ -52,7 +59,9 @@ public class UserJpaEntity extends BaseJpaEntity {
             Role role,
             UserStatus status,
             String cpfCiphertext,
-            String cpfLookupHash) {
+            String cpfLookupHash,
+            String phoneCiphertext,
+            String phoneLookupHash) {
         super(id);
         this.emailCiphertext = emailCiphertext;
         this.emailLookupHash = emailLookupHash;
@@ -62,51 +71,66 @@ public class UserJpaEntity extends BaseJpaEntity {
         this.status = status;
         this.cpfCiphertext = cpfCiphertext;
         this.cpfLookupHash = cpfLookupHash;
+        this.phoneCiphertext = phoneCiphertext;
+        this.phoneLookupHash = phoneLookupHash;
     }
 
-    String getEmailCiphertext() {
+    public String getEmailCiphertext() {
         return emailCiphertext;
     }
 
-    String getEmailLookupHash() {
+    public String getEmailLookupHash() {
         return emailLookupHash;
     }
 
-    String getPasswordHash() {
+    public String getPasswordHash() {
         return passwordHash;
     }
 
-    String getName() {
+    public String getName() {
         return name;
     }
 
-    Role getRole() {
+    public Role getRole() {
         return role;
     }
 
-    UserStatus getStatus() {
+    public UserStatus getStatus() {
         return status;
     }
 
-    String getCpfCiphertext() {
+    public String getCpfCiphertext() {
         return cpfCiphertext;
     }
 
-    String getCpfLookupHash() {
+    public String getCpfLookupHash() {
         return cpfLookupHash;
     }
 
-    void updateEmail(String ciphertext, String lookupHash) {
+    public String getPhoneCiphertext() {
+        return phoneCiphertext;
+    }
+
+    public String getPhoneLookupHash() {
+        return phoneLookupHash;
+    }
+
+    public void updateEmail(String ciphertext, String lookupHash) {
         this.emailCiphertext = ciphertext;
         this.emailLookupHash = lookupHash;
     }
 
-    void updateCpf(String ciphertext, String lookupHash) {
+    public void updateCpf(String ciphertext, String lookupHash) {
         this.cpfCiphertext = ciphertext;
         this.cpfLookupHash = lookupHash;
     }
 
-    void applyChanges(User user) {
+    public void updatePhone(String ciphertext, String lookupHash) {
+        this.phoneCiphertext = ciphertext;
+        this.phoneLookupHash = lookupHash;
+    }
+
+    public void applyChanges(User user) {
         this.passwordHash = user.passwordHash();
         this.name = user.name();
         this.role = user.role();

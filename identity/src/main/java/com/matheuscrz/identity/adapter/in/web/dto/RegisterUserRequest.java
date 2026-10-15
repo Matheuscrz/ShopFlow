@@ -12,11 +12,14 @@ public record RegisterUserRequest(
 
         @NotBlank(message = "Nome é obrigatório") @Size(max = 120, message = "O nome deve ter no máximo 120 caracteres") String name,
 
-        @NotBlank(message = "CPF é obrigatório") String cpf) {
+        @NotBlank(message = "CPF é obrigatório") String cpf,
+
+        @NotBlank(message = "Telefone é obrigatório") @Size(max = 15, message = "O telefone deve ter no máximo 15 caracteres") String phone) {
 
     public RegisterUserRequest {
         email = UserInputNormalizer.email(email);
         name = UserInputNormalizer.name(name);
         cpf = cpf != null ? cpf.replaceAll("\\D", "") : null;
+        phone = phone != null ? phone.replaceAll("\\D", "") : null;
     }
 }

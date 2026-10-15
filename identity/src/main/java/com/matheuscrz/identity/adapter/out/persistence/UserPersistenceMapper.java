@@ -5,17 +5,17 @@ import com.matheuscrz.identity.domain.model.Email;
 import com.matheuscrz.identity.domain.model.User;
 
 public final class UserPersistenceMapper {
-
     private UserPersistenceMapper() {
     }
 
-    static User toDomain(UserJpaEntity entity, Email email, Cpf cpf) {
+    static User toDomain(UserJpaEntity entity, Email email, Cpf cpf, String phone) {
         return User.restore(
                 entity.getId(),
                 email,
                 entity.getPasswordHash(),
                 entity.getName(),
                 cpf,
+                phone,
                 entity.getRole(),
                 entity.getStatus(),
                 entity.getCreatedAt());
@@ -26,7 +26,9 @@ public final class UserPersistenceMapper {
             String emailCiphertext,
             String emailLookupHash,
             String cpfCiphertext,
-            String cpfLookupHash) {
+            String cpfLookupHash,
+            String phoneCiphertext,
+            String phoneLookupHash) {
         return new UserJpaEntity(
                 user.id(),
                 emailCiphertext,
@@ -36,6 +38,8 @@ public final class UserPersistenceMapper {
                 user.role(),
                 user.status(),
                 cpfCiphertext,
-                cpfLookupHash);
+                cpfLookupHash,
+                phoneCiphertext,
+                phoneLookupHash);
     }
 }

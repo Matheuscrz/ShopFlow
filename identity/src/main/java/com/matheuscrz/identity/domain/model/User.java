@@ -7,38 +7,39 @@ import java.util.UUID;
 
 public final class User {
     public static final int NAME_MAX_LENGTH = 120;
-
     private final UUID id;
     private final Email email;
     private String passwordHash;
     private String name;
     private Cpf cpf;
+    private String phone;
     private Role role;
     private UserStatus status;
     private final Instant createdAt;
 
     private User(UUID id, Email email, String passwordHash, String name,
-            Cpf cpf, Role role, UserStatus status, Instant createdAt) {
+            Cpf cpf, String phone, Role role, UserStatus status, Instant createdAt) {
         this.id = Objects.requireNonNull(id, "id");
         this.email = Objects.requireNonNull(email, "email");
         this.passwordHash = requireHash(passwordHash);
         this.name = requireName(name);
         this.cpf = cpf;
+        this.phone = phone;
         this.role = Objects.requireNonNull(role, "role");
         this.status = Objects.requireNonNull(status, "status");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
     }
 
     public static User registerCustomer(UUID id, Email email, String passwordHash,
-            String name, Cpf cpf, Instant now) {
-        return new User(id, email, passwordHash, name, cpf,
+            String name, Cpf cpf, String phone, Instant now) {
+        return new User(id, email, passwordHash, name, cpf, phone,
                 Role.CUSTOMER, UserStatus.ACTIVE, now);
     }
 
     public static User restore(UUID id, Email email, String passwordHash,
-            String name, Cpf cpf, Role role, UserStatus status,
+            String name, Cpf cpf, String phone, Role role, UserStatus status,
             Instant createdAt) {
-        return new User(id, email, passwordHash, name, cpf, role, status, createdAt);
+        return new User(id, email, passwordHash, name, cpf, phone, role, status, createdAt);
     }
 
     public boolean canAuthenticate() {
@@ -59,6 +60,10 @@ public final class User {
 
     public void rename(String newName) {
         name = requireName(newName);
+    }
+
+    public void updatePhone(String newPhone) {
+        this.phone = newPhone;
     }
 
     public void changePasswordHash(String newHash) {
@@ -83,6 +88,10 @@ public final class User {
 
     public Cpf cpf() {
         return cpf;
+    }
+
+    public String phone() {
+        return phone;
     }
 
     public Role role() {

@@ -25,6 +25,20 @@ public final class UserInputNormalizer {
         return value == null ? null : value.replaceAll("\\D", "");
     }
 
+    public static String phone(String value) {
+        if (value == null || value.isBlank()) {
+            throw new InvalidUserDataException("O telefone é obrigatório.");
+        }
+
+        String normalized = value.replaceAll("\\D", "");
+
+        if (normalized.length() != 10 && normalized.length() != 11) {
+            throw new InvalidUserDataException("Telefone inválido.");
+        }
+
+        return normalized;
+    }
+
     private static String collapse(String value) {
         return value == null ? null : value.strip().replaceAll("\\s+", " ");
     }

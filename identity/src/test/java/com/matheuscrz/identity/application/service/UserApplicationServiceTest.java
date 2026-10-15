@@ -65,7 +65,8 @@ class UserApplicationServiceTest {
                                 "novo.dev@shopflow.dev",
                                 "SenhaForte#2026",
                                 "Matheus Lima",
-                                "52998224725");
+                                "52998224725",
+                                "11999998888");
 
                 when(sensitiveDataSecurity.generateLookupHash("52998224725")).thenReturn("fake-lookup-hash-64-bytes");
                 when(userRepository.findByCpfLookupHash("fake-lookup-hash-64-bytes")).thenReturn(Optional.empty());
@@ -80,6 +81,7 @@ class UserApplicationServiceTest {
                 assertThat(registered.cpf().value()).isEqualTo("52998224725");
                 assertThat(registered.role()).isEqualTo(Role.CUSTOMER);
                 assertThat(registered.status()).isEqualTo(UserStatus.ACTIVE);
+                assertThat(registered.phone()).isEqualTo("11999998888");
 
                 ArgumentCaptor<UserRegisteredEvent> eventCaptor = ArgumentCaptor.forClass(UserRegisteredEvent.class);
                 verify(notificationEventPort).publishUserRegistered(eventCaptor.capture());
@@ -93,7 +95,8 @@ class UserApplicationServiceTest {
                                 "outro.dev@shopflow.dev",
                                 "SenhaForte#2026",
                                 "Outro Usuario",
-                                "52998224725");
+                                "52998224725",
+                                "11999998888");
 
                 User existingUser = User.restore(
                                 UUID.randomUUID(),
@@ -101,6 +104,7 @@ class UserApplicationServiceTest {
                                 "hash",
                                 "Matheus Cruz",
                                 new Cpf("52998224725"),
+                                "11988887777",
                                 Role.CUSTOMER,
                                 UserStatus.ACTIVE,
                                 clock.instant());
@@ -128,7 +132,8 @@ class UserApplicationServiceTest {
                                 "existente@shopflow.dev",
                                 "SenhaForte#2026",
                                 "User",
-                                "52998224725");
+                                "52998224725",
+                                "11999998888");
 
                 when(sensitiveDataSecurity.generateLookupHash("52998224725")).thenReturn("fake-lookup-hash-64-bytes");
                 when(userRepository.findByCpfLookupHash("fake-lookup-hash-64-bytes")).thenReturn(Optional.empty());
@@ -148,13 +153,33 @@ class UserApplicationServiceTest {
                                 "novo@shopflow.dev",
                                 "SenhaForte#2026",
                                 "User",
-                                "11111111111");
+                                "11111111111",
+                                "11999998888");
 
                 assertThatThrownBy(() -> userService.register(command))
-                                .isInstanceOf(InvalidUserDataException.class);
+                                .isInstanceOf(InvalidUserDataException.class)
+                                .hasMessageContaining("CPF inválido ou em formato incorreto.");
 
                 verifyNoInteractions(sensitiveDataSecurity);
                 verifyNoInteractions(userRepository);
                 verifyNoInteractions(notificationEventPort);
+        }
+
+        @Test
+        @DisplayName("Deve rejeitar telefone nulo")
+        void shouldRejectNullPhone() {
+                var command = new RegisterUserCommand(
+                                "novo@shopflow.dev",
+                                "SenhaForte#2026",
+                                "User",
+                                "52998224725",
+                                null);
+
+                assertThatThrownBy(() -> userService.register(command))
+                                .isInstanceOf(InvalidUserDataException.class)
+                                .hasMessageContaining("O telefone é obrigatório.");
+
+                verifyNoInteractions(sensitiveDataSecurity);
+                verifyNoInteractions(userRepository);
         }
 }

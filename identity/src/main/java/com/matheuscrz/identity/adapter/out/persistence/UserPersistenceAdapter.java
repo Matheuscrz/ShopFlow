@@ -12,7 +12,6 @@ import java.util.UUID;
 
 @Component
 public class UserPersistenceAdapter implements UserRepositoryPort {
-
     private final SpringDataUserJpaRepository repository;
     private final SensitiveDataSecurityPort security;
 
@@ -36,11 +35,19 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
                 ? null
                 : security.generateLookupHash(user.cpf().value());
 
+        String phoneCiphertext = user.phone() == null
+                ? null
+                : security.encrypt(user.phone());
+        String phoneLookupHash = user.phone() == null
+                ? null
+                : security.generateLookupHash(user.phone());
+
         UserJpaEntity entity = repository.findById(user.id())
                 .map(existing -> {
                     existing.applyChanges(user);
                     existing.updateEmail(emailCiphertext, emailLookupHash);
                     existing.updateCpf(cpfCiphertext, cpfLookupHash);
+                    existing.updatePhone(phoneCiphertext, phoneLookupHash);
                     return existing;
                 })
                 .orElseGet(() -> UserPersistenceMapper.toEntity(
@@ -48,7 +55,9 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
                         emailCiphertext,
                         emailLookupHash,
                         cpfCiphertext,
-                        cpfLookupHash));
+                        cpfLookupHash,
+                        phoneCiphertext,
+                        phoneLookupHash));
 
         return toDomain(repository.save(entity));
     }
@@ -97,11 +106,13 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
     private User toDomain(UserJpaEntity entity) {
         String decryptedEmail = security.decrypt(entity.getEmailCiphertext());
         Email email = Email.of(decryptedEmail);
-
         Cpf cpf = entity.getCpfCiphertext() == null
                 ? null
                 : new Cpf(security.decrypt(entity.getCpfCiphertext()));
+        String phone = entity.getPhoneCiphertext() == null
+                ? null
+                : security.decrypt(entity.getPhoneCiphertext());
 
-        return UserPersistenceMapper.toDomain(entity, email, cpf);
+        return UserPersistenceMapper.toDomain(entity, email, cpf, phone);
     }
 }
