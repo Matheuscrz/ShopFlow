@@ -1,17 +1,16 @@
 package com.matheuscrz.identity.adapter.out.security;
 
 import com.matheuscrz.identity.application.port.out.TokenProviderPort;
+import com.matheuscrz.identity.config.JwtProperties;
+import com.matheuscrz.identity.config.RsaKeyProvider;
 import com.matheuscrz.identity.domain.model.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,20 +22,32 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 
 @Component
 public class JwtTokenProviderAdapter implements TokenProviderPort {
 
     private static final Duration ACCESS_TOKEN_TTL = Duration.ofMinutes(15);
-    private final SecretKey secretKey;
+    private final RSAPrivateKey privateKey;
+    private final RSAPublicKey publicKey;
+    private final String kid;
+    private final String issuer;
+    private final String audience;
     private final Clock clock;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public JwtTokenProviderAdapter(
-            @Value("${app.jwt.secret}") String secret,
+            RsaKeyProvider rsaKeyProvider,
+            JwtProperties jwtProperties,
             Clock clock) {
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.privateKey = rsaKeyProvider.getPrivateKey();
+        this.publicKey = rsaKeyProvider.getPublicKey();
+        this.kid = rsaKeyProvider.getKid();
+        this.issuer = jwtProperties.getIssuer();
+        this.audience = jwtProperties.getAudience();
         this.clock = clock;
     }
 
@@ -46,13 +57,18 @@ public class JwtTokenProviderAdapter implements TokenProviderPort {
         Instant expiry = now.plus(ACCESS_TOKEN_TTL);
 
         return Jwts.builder()
-                .id(UUID.randomUUID().toString()) // jti para rastreabilidade/blacklist
+                .header()
+                .keyId(kid)
+                .and()
+                .id(UUID.randomUUID().toString())
                 .subject(user.id().toString())
+                .issuer(issuer)
+                .audience().add(audience).and()
                 .claim("email", user.email().value())
-                .claim("role", user.role().name())
+                .claim("roles", List.of(user.role().name()))
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiry))
-                .signWith(secretKey, Jwts.SIG.HS256)
+                .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
@@ -82,13 +98,16 @@ public class JwtTokenProviderAdapter implements TokenProviderPort {
     public Claims parseAndValidate(String token) {
         try {
             Jws<Claims> parsed = Jwts.parser()
-                    .verifyWith(secretKey)
+                    .verifyWith(publicKey)
                     .clock(() -> Date.from(clock.instant()))
+                    .requireIssuer(issuer)
+                    .requireAudience(audience)
                     .build()
                     .parseSignedClaims(token);
 
-            if (!"HS256".equals(parsed.getHeader().getAlgorithm())) {
-                throw new SignatureException("Algoritmo JWT não permitido");
+            if (!"RS256".equals(parsed.getHeader().getAlgorithm())
+                    || !kid.equals(parsed.getHeader().getKeyId())) {
+                throw new SignatureException("Algoritmo ou chave JWT não permitidos");
             }
             return parsed.getPayload();
         } catch (JwtException | IllegalArgumentException ex) {

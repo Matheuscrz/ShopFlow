@@ -39,5 +39,10 @@ out/
 ### Environment ###
 .env
 
+### Private keys and certificates ###
+*.pem
+*.der
+*.key
+
 ### Logs ###
 logs/

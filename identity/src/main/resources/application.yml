@@ -65,7 +65,11 @@ app:
       user-events: identity.user-events
 
   jwt:
-    secret: ${JWT_SECRET:uma-secreta-muito-segura}
+    kid: ${JWT_KEY_ID:identity-key-1}
+    issuer: ${JWT_ISSUER:https://identity.shopflow.dev}
+    audience: ${JWT_AUDIENCE:shopflow-api}
+    private-key: ${JWT_PRIVATE_KEY:}
+    public-key: ${JWT_PUBLIC_KEY:}
     cookie-secure: ${COOKIE_SECURE:false}
     cookie-same-site: ${COOKIE_SAME_SITE:Lax}
 

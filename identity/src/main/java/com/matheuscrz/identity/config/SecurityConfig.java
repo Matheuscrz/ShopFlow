@@ -3,7 +3,7 @@ package com.matheuscrz.identity.config;
 import com.matheuscrz.identity.adapter.in.web.security.JwtBlacklistValidationFilter;
 import com.matheuscrz.identity.adapter.in.web.security.LoginRateLimitFilter;
 import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jwt.proc.DefaultJWTProcessor;
@@ -22,14 +22,15 @@ import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
-
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -53,11 +54,9 @@ public class SecurityConfig {
         private static final String[] PUBLIC_WHITELIST = {
                         "/api/auth/**",
                         "/api/users/register",
-                        "/actuator/health"
+                        "/actuator/health",
+                        "/.well-known/jwks.json"
         };
-
-        @Value("${app.jwt.secret}")
-        private String jwtSecret;
 
         @Value("${app.cors.allowed-origins}")
         private String allowedOrigins;
@@ -69,7 +68,8 @@ public class SecurityConfig {
         public SecurityFilterChain securityFilterChain(
                         HttpSecurity http,
                         LoginRateLimitFilter rateLimitFilter,
-                        JwtBlacklistValidationFilter blacklistFilter) throws Exception {
+                        JwtBlacklistValidationFilter blacklistFilter,
+                        JwtDecoder jwtDecoder) throws Exception {
 
                 if (corsEnabled) {
                         http.cors(Customizer.withDefaults());
@@ -91,7 +91,7 @@ public class SecurityConfig {
                                                 .anyRequest().authenticated())
                                 .oauth2ResourceServer(oauth2 -> oauth2
                                                 .jwt(jwt -> jwt
-                                                                .decoder(jwtDecoder())
+                                                                .decoder(jwtDecoder)
                                                                 .jwtAuthenticationConverter(
                                                                                 jwtAuthenticationConverter())))
                                 // Adiciona o rate limiter na entrada do filtro de autenticação
@@ -110,25 +110,29 @@ public class SecurityConfig {
         }
 
         @Bean
-        JwtDecoder jwtDecoder() {
-                SecretKeySpec secretKey = new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-
+        JwtDecoder jwtDecoder(RsaKeyProvider rsaKeyProvider, JwtProperties jwtProperties) {
                 DefaultJWTProcessor<SecurityContext> jwtProcessor = new DefaultJWTProcessor<>();
-                // Fixa rigorosamente o algoritmo simétrico HS256 (rejeita alg: none, RS256,
-                // etc.)
                 JWSVerificationKeySelector<SecurityContext> keySelector = new JWSVerificationKeySelector<>(
-                                JWSAlgorithm.HS256, new ImmutableSecret<>(secretKey));
+                                JWSAlgorithm.RS256,
+                                new ImmutableJWKSet<>(rsaKeyProvider.getPublicJwkSet()));
                 jwtProcessor.setJWSKeySelector(keySelector);
 
-                return new NimbusJwtDecoder(jwtProcessor);
+                NimbusJwtDecoder decoder = new NimbusJwtDecoder(jwtProcessor);
+                OAuth2TokenValidator<Jwt> defaultValidator =
+                                JwtValidators.createDefaultWithIssuer(jwtProperties.getIssuer());
+                OAuth2TokenValidator<Jwt> audienceValidator = new JwtClaimValidator<>(
+                                "aud",
+                                aud -> aud instanceof List<?> values
+                                                && values.contains(jwtProperties.getAudience()));
+                decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                                defaultValidator, audienceValidator));
+                return decoder;
         }
 
         @Bean
         Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter() {
                 JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-                // Mapeia a claim customizada "role" (CUSTOMER/ADMIN) para a autoridade
-                // "ROLE_CUSTOMER" / "ROLE_ADMIN"
-                grantedAuthoritiesConverter.setAuthoritiesClaimName("role");
+                grantedAuthoritiesConverter.setAuthoritiesClaimName("roles");
                 grantedAuthoritiesConverter.setAuthorityPrefix("ROLE_");
 
                 JwtAuthenticationConverter jwtConverter = new JwtAuthenticationConverter();
