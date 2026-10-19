@@ -165,7 +165,10 @@ public class SecurityConfig {
                                 "Content-Type",
                                 "Accept",
                                 "Origin",
-                                "X-Requested-With"));
+                                "X-Requested-With",
+                                "X-Correlation-Id"));
+
+                configuration.setExposedHeaders(List.of("X-Correlation-Id"));
 
                 configuration.setAllowCredentials(true);
                 configuration.setMaxAge(3600L);

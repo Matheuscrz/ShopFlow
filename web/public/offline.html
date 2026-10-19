@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ShopFlow - Sem Conexão</title>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --primary: #2563eb;
+        --primary-hover: #1d4ed8;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f172a;
+          --card: #1e293b;
+          --text: #f8fafc;
+          --muted: #94a3b8;
+          --primary: #3b82f6;
+          --primary-hover: #60a5fa;
+        }
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 1.5rem;
+      }
+      .card {
+        background-color: var(--card);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 1rem;
+        padding: 2.5rem 2rem;
+        max-width: 420px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      }
+      .icon {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 1.5rem;
+        color: var(--primary);
+      }
+      h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.75rem; }
+      p { font-size: 0.95rem; color: var(--muted); line-height: 1.5; margin-bottom: 2rem; }
+      button {
+        background-color: var(--primary);
+        color: #fff;
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        transition: opacity 0.2s;
+      }
+      button:hover { opacity: 0.9; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 4.243a9 9 0 01-5.657-2.829m0 0l2.829-2.829m-2.829 2.829L3 21m3.172-12.536a5 5 0 015.656-1.414m-5.656 1.414L9 11.243m4.243-4.243L15 5.172" />
+      </svg>
+      <h1>Você está offline</h1>
+      <p>Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.</p>
+      <button onclick="window.location.reload()">Tentar novamente</button>
+    </div>
+  </body>
+</html>
