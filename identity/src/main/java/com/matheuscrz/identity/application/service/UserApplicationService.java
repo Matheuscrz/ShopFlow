@@ -21,6 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.util.UUID;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class UserApplicationService implements ManageUserUseCase {
 
@@ -52,13 +55,19 @@ public class UserApplicationService implements ManageUserUseCase {
         String lookupHash = sensitiveDataSecurity.generateLookupHash(cpf.value());
 
         userRepository.findByCpfLookupHash(lookupHash).ifPresent(existingUser -> {
+            log.warn(
+                    "Tentativa de cadastro com CPF já existente. emailMasked={}",
+                    existingUser.email().masked());
+
             throw new CpfAlreadyExistsException(existingUser.email().masked());
         });
 
         String normalizedEmail = UserInputNormalizer.email(command.email());
         Email email = Email.of(normalizedEmail);
         if (userRepository.existsByEmail(email)) {
-            throw new EmailAlreadyExistsException(email.value());
+            log.warn("Tentativa de cadastro com e-mail duplicado. emailMasked={}", email.masked());
+
+            throw new EmailAlreadyExistsException(email.masked());
         }
 
         String normalizedName = UserInputNormalizer.name(command.name());
@@ -75,6 +84,11 @@ public class UserApplicationService implements ManageUserUseCase {
                 clock.instant());
 
         User savedUser = userRepository.save(newUser);
+
+        log.info(
+                "Usuário cadastrado com sucesso. userId={}, emailMasked={}",
+                savedUser.id(),
+                savedUser.email().masked());
 
         notificationEventPort.publishUserRegistered(
                 UserRegisteredEvent.of(

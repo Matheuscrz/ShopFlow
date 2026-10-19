@@ -6,6 +6,9 @@ spring:
   threads:
     virtual:
       enabled: true
+
+  profiles:
+    default: local
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME:shopflow_admin}
@@ -83,3 +86,7 @@ app:
 
 server:
   port: 8080
+
+logging:
+  file:
+    path: ${LOG_PATH:./logs}
