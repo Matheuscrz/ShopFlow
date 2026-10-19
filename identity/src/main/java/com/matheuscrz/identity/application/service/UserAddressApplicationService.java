@@ -15,6 +15,9 @@ import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class UserAddressApplicationService implements ManageUserAddressUseCase {
 
@@ -55,6 +58,11 @@ public class UserAddressApplicationService implements ManageUserAddressUseCase {
 
                 UserAddress savedAddress = addressRepository.save(address);
 
+                log.info(
+                                "Endereço adicionado com sucesso. userId={}, addressId={}",
+                                cmd.userId(),
+                                savedAddress.id());
+
                 notificationEventPort.publishAddressChanged(
                                 UserAddressChangedEvent.of(
                                                 cmd.userId(),
@@ -89,6 +97,11 @@ public class UserAddressApplicationService implements ManageUserAddressUseCase {
 
                 UserAddress savedAddress = addressRepository.save(address);
 
+                log.info(
+                                "Endereço atualizado com sucesso. userId={}, addressId={}",
+                                cmd.userId(),
+                                savedAddress.id());
+
                 notificationEventPort.publishAddressChanged(
                                 UserAddressChangedEvent.of(
                                                 cmd.userId(),
@@ -103,7 +116,14 @@ public class UserAddressApplicationService implements ManageUserAddressUseCase {
         @Override
         @Transactional(readOnly = true)
         public List<UserAddress> listAddresses(UUID userId) {
-                return addressRepository.findAllByUserId(userId);
+                List<UserAddress> addresses = addressRepository.findAllByUserId(userId);
+
+                log.debug(
+                                "Endereços consultados. userId={}, quantity={}",
+                                userId,
+                                addresses.size());
+
+                return addresses;
         }
 
         @Override
@@ -116,6 +136,11 @@ public class UserAddressApplicationService implements ManageUserAddressUseCase {
                                 .orElseThrow(() -> new InvalidUserDataException("Endereço não encontrado."));
 
                 addressRepository.deleteByIdAndUserId(id, userId);
+
+                log.info(
+                                "Endereço removido com sucesso. userId={}, addressId={}",
+                                userId,
+                                id);
 
                 notificationEventPort.publishAddressChanged(
                                 UserAddressChangedEvent.of(

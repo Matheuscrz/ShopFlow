@@ -1,0 +1,71 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: catalog
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME:shopflow_admin}
+    password: ${DB_PASSWORD:shopflow_admin_password}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+      properties:
+        max.block.ms: 3000
+        enable.idempotence: true
+    consumer:
+      group-id: catalog.service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:matheuslimasof.eng@gmail.com}
+    password: ${SMTP_PASSWORD:password}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+  kafka:
+    topics:
+      user-events: catalog.user-events
+
+  mail:
+    enabled: true
+    from: ${SMTP_USERNAME:template@shopflow.com}
+    logo-url: ${EMAIL_LOGO_URL:https://i.imgur.com/t8hov9M.png}
+
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
+
+server:
+  port: 8081

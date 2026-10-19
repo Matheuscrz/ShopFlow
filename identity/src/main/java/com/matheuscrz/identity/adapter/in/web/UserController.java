@@ -41,13 +41,14 @@ public class UserController {
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Registrar usuário", description = "Registra um novo usuário com e-mail, senha, nome e CPF.")
+    @Operation(summary = "Registrar usuário", description = "Registra um novo usuário com e-mail, senha, nome, CPF e telefone.")
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterUserRequest request) {
         var command = new ManageUserUseCase.RegisterUserCommand(
                 request.email(),
                 request.password(),
                 request.name(),
-                request.cpf());
+                request.cpf(),
+                request.phone());
         User user = manageUserUseCase.register(command);
         URI location = URI.create("/api/users/" + user.id());
         return ResponseEntity.created(location).body(UserResponse.fromDomain(user));

@@ -1,0 +1,19 @@
+ALTER TABLE users
+    ALTER COLUMN cpf_lookup_hash TYPE VARCHAR(64),
+    ALTER COLUMN email_lookup_hash TYPE VARCHAR(64),
+    ALTER COLUMN phone_lookup_hash TYPE VARCHAR(64);
+
+ALTER TABLE users
+    ALTER COLUMN email DROP NOT NULL;
+
+DROP INDEX IF EXISTS uk_users_email_lower;
+
+ALTER TABLE user_addresses
+    ALTER COLUMN zip_code DROP NOT NULL,
+    ALTER COLUMN street DROP NOT NULL,
+    ALTER COLUMN number DROP NOT NULL,
+    ALTER COLUMN complement DROP NOT NULL,
+    ALTER COLUMN neighborhood DROP NOT NULL,
+    ALTER COLUMN city DROP NOT NULL,
+    ALTER COLUMN state DROP NOT NULL,
+    ALTER COLUMN country DROP NOT NULL;

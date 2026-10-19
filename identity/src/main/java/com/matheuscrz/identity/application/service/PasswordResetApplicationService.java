@@ -12,6 +12,7 @@ import com.matheuscrz.identity.domain.exception.InvalidUserDataException;
 import com.matheuscrz.identity.domain.model.Email;
 import com.matheuscrz.identity.domain.model.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PasswordResetApplicationService implements PasswordResetUseCase {
@@ -35,10 +37,18 @@ public class PasswordResetApplicationService implements PasswordResetUseCase {
     @Transactional
     public void requestPasswordReset(String emailInput) {
         String normalizedEmail = UserInputNormalizer.email(emailInput);
-        Optional<User> userOpt = userRepository.findByEmail(Email.of(normalizedEmail));
+        Email email = Email.of(normalizedEmail);
 
-        // Retorna silenciosamente para evitar enumeração de e-mails
+        log.info(
+                "Solicitação de recuperação de senha recebida. emailMasked={}",
+                email.masked());
+
+        Optional<User> userOpt = userRepository.findByEmail(email);
+
         if (userOpt.isEmpty() || !userOpt.get().canAuthenticate()) {
+            log.info(
+                    "Solicitação de recuperação não elegível. emailMasked={}",
+                    email.masked());
             return;
         }
 
@@ -51,17 +61,30 @@ public class PasswordResetApplicationService implements PasswordResetUseCase {
         Duration ttl = Duration.ofMinutes(15); // Token válido por apenas 15 minutos
         resetTokenPort.saveTokenHash(tokenHash, user.id(), ttl);
 
+        log.info(
+                "Token de recuperação gerado e evento publicado. userId={}",
+                user.id());
+
         notificationEventPort.publishPasswordResetRequested(
-                PasswordResetRequestedEvent.of(user.id(), user.email().value(), rawToken, clock.instant().plus(ttl)));
+                PasswordResetRequestedEvent.of(
+                        user.id(),
+                        user.email().value(),
+                        rawToken,
+                        clock.instant().plus(ttl)));
     }
 
     @Override
     @Transactional
     public void resetPassword(String rawToken, String newRawPassword) {
+        log.info("Tentativa de redefinição de senha recebida.");
+
         String tokenHash = tokenProvider.hashToken(rawToken.strip());
 
         UUID userId = resetTokenPort.getUserIdByTokenHash(tokenHash)
-                .orElseThrow(() -> new InvalidUserDataException("Token de recuperação inválido ou expirado."));
+                .orElseThrow(() -> {
+                    log.warn("Tentativa de redefinição com token inválido ou expirado.");
+                    return new InvalidUserDataException("Token de recuperação inválido ou expirado.");
+                });
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new InvalidUserDataException("Usuário não encontrado."));
@@ -72,6 +95,8 @@ public class PasswordResetApplicationService implements PasswordResetUseCase {
 
         // Invalida o token para uso único
         resetTokenPort.invalidateTokenHash(tokenHash);
+
+        log.info("Senha redefinida com sucesso. userId={}", user.id());
 
         // Dispara o evento genérico para notificar o usuário de que a senha mudou
         notificationEventPort.publishPasswordChanged(

@@ -4,12 +4,12 @@ import com.matheuscrz.identity.domain.model.User;
 import java.util.UUID;
 
 public interface ManageUserUseCase {
-
         record RegisterUserCommand(
                         String email,
                         String rawPassword,
                         String name,
-                        String cpf) {
+                        String cpf,
+                        String phone) {
         }
 
         record UpdateUserCommand(

@@ -72,6 +72,7 @@ class AuthApplicationServiceTest {
                                 "hashedPass",
                                 "Cliente Teste",
                                 null,
+                                null,
                                 Role.CUSTOMER,
                                 UserStatus.ACTIVE,
                                 clock.instant());
@@ -110,7 +111,9 @@ class AuthApplicationServiceTest {
                                 Email.of("cliente@shopflow.dev"),
                                 "hashedPass",
                                 "Cliente Teste",
-                                null, Role.CUSTOMER,
+                                null,
+                                null,
+                                Role.CUSTOMER,
                                 UserStatus.ACTIVE,
                                 clock.instant());
 

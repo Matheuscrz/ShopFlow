@@ -62,13 +62,22 @@ public class SecurityConfig {
         @Value("${app.cors.allowed-origins}")
         private String allowedOrigins;
 
+        @Value("${app.cors.enabled:false}")
+        private boolean corsEnabled;
+
         @Bean
         public SecurityFilterChain securityFilterChain(
                         HttpSecurity http,
                         LoginRateLimitFilter rateLimitFilter,
                         JwtBlacklistValidationFilter blacklistFilter) throws Exception {
+
+                if (corsEnabled) {
+                        http.cors(Customizer.withDefaults());
+                } else {
+                        http.cors(AbstractHttpConfigurer::disable);
+                }
+
                 http
-                                .cors(Customizer.withDefaults())
                                 .csrf(AbstractHttpConfigurer::disable)
                                 .httpBasic(AbstractHttpConfigurer::disable)
                                 .formLogin(AbstractHttpConfigurer::disable)
@@ -149,12 +158,7 @@ public class SecurityConfig {
                                                 .toList());
 
                 configuration.setAllowedMethods(List.of(
-                                "GET",
-                                "POST",
-                                "PUT",
-                                "PATCH",
-                                "DELETE",
-                                "OPTIONS"));
+                                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
                 configuration.setAllowedHeaders(List.of(
                                 "Authorization",
@@ -163,14 +167,11 @@ public class SecurityConfig {
                                 "Origin",
                                 "X-Requested-With"));
 
-                // Necessário para o navegador enviar o cookie HttpOnly.
                 configuration.setAllowCredentials(true);
-
                 configuration.setMaxAge(3600L);
 
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
                 source.registerCorsConfiguration("/**", configuration);
-
                 return source;
         }
 }

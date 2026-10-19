@@ -6,6 +6,13 @@ export const registerSchema = z
     name: z.string().trim().min(3, "Nome deve ter pelo menos 3 caracteres"),
     email: z.string().trim().email("E-mail inválido"),
     cpf: z.string().transform(stripCpf).refine(isValidCpf, "CPF inválido"),
+    phone: z
+      .string()
+      .transform((value) => value.replace(/\D/g, ""))
+      .refine(
+        (value) => value.length === 10 || value.length === 11,
+        "Telefone inválido",
+      ),
     password: z
       .string()
       .min(8, "Senha deve ter no mínimo 8 caracteres")

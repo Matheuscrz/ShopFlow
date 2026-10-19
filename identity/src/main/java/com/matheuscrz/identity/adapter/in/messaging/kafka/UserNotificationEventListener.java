@@ -11,6 +11,7 @@ import com.matheuscrz.identity.domain.event.UserAddressChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -31,6 +32,24 @@ public class UserNotificationEventListener {
 
     @KafkaListener(topics = "${app.kafka.topics.user-events}", groupId = "${spring.kafka.consumer.group-id}", containerFactory = "kafkaListenerContainerFactory")
     public void onMessage(ConsumerRecord<String, String> record) {
+        MDC.clear();
+
+        String correlationId = resolveHeader(
+                record,
+                "correlationId",
+                UUID.randomUUID().toString());
+
+        MDC.put("correlationId", correlationId);
+        MDC.put("requestPath", "KAFKA:" + record.topic());
+
+        try {
+            processMessage(record);
+        } finally {
+            MDC.clear();
+        }
+    }
+
+    private void processMessage(ConsumerRecord<String, String> record) {
         String eventIdStr = resolveEventId(record);
         String eventType = resolveEventType(record);
         String payload = record.value();
@@ -73,6 +92,13 @@ public class UserNotificationEventListener {
                     e);
             throw e;
         }
+    }
+
+    private String resolveHeader(ConsumerRecord<String, String> record, String key, String defaultValue) {
+        var header = record.headers().lastHeader(key);
+        return (header != null && header.value() != null)
+                ? new String(header.value(), StandardCharsets.UTF_8)
+                : defaultValue;
     }
 
     private void dispatchTypedEvent(

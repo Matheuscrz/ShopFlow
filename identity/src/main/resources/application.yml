@@ -6,6 +6,9 @@ spring:
   threads:
     virtual:
       enabled: true
+
+  profiles:
+    default: local
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME:shopflow_admin}
@@ -54,7 +57,8 @@ spring:
 
 app:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    enabled: ${CORS_ENABLED:false}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost,http://localhost:3000,http://127.0.0.1,http://127.0.0.1:3000}
 
   kafka:
     topics:
@@ -69,9 +73,9 @@ app:
     rate-limit:
       login-max-attempts: 5
       login-window-seconds: 60
-    cpf:
-      encryption-key: ${APP_CPF_ENCRYPTION_KEY:uma-secreta-muito-segura}
-      lookup-key: ${APP_CPF_LOOKUP_KEY:uma-secreta-muito-segura}
+    data-protection:
+      encryption-key: ${APP_DATA_ENCRYPTION_KEY:${APP_DATA_PROTECTION_ENCRYPTION_KEY:uma-secreta-muito-segura}}
+      lookup-key: ${APP_DATA_LOOKUP_KEY:${APP_DATA_PROTECTION_LOOKUP_KEY:uma-secreta-muito-segura}}
 
   mail:
     enabled: true
@@ -82,3 +86,7 @@ app:
 
 server:
   port: 8080
+
+logging:
+  file:
+    path: ${LOG_PATH:./logs}

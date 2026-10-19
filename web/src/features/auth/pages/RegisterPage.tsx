@@ -11,6 +11,7 @@ import {
   type RegisterFormData,
 } from "../schemas/register.schema";
 import { formatCpf } from "../../../lib/cpf";
+import { formatPhone } from "../../../lib/phone";
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,9 +29,10 @@ export const RegisterPage: React.FC = () => {
     defaultValues: {
       name: "",
       email: "",
+      cpf: "",
+      phone: "",
       password: "",
       confirmPassword: "",
-      cpf: "",
     },
   });
 
@@ -112,6 +114,24 @@ export const RegisterPage: React.FC = () => {
             {...register("cpf", {
               onChange: (event) => {
                 setValue("cpf", formatCpf(event.target.value), {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                });
+              },
+            })}
+          />
+
+          <Input
+            label="Telefone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="(11) 99999-8888"
+            maxLength={15}
+            error={errors.phone?.message}
+            {...register("phone", {
+              onChange: (event) => {
+                setValue("phone", formatPhone(event.target.value), {
                   shouldValidate: true,
                   shouldDirty: true,
                 });

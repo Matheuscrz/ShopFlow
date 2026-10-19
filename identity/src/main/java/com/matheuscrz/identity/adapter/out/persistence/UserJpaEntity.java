@@ -8,8 +8,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.util.UUID;
 
@@ -17,8 +15,11 @@ import java.util.UUID;
 @Table(name = "users")
 public class UserJpaEntity extends BaseJpaEntity {
 
-    @Column(nullable = false, unique = true, length = 254)
-    private String email;
+    @Column(name = "email_ciphertext", nullable = false, columnDefinition = "TEXT")
+    private String emailCiphertext;
+
+    @Column(name = "email_lookup_hash", nullable = false, length = 64)
+    private String emailLookupHash;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
@@ -34,45 +35,104 @@ public class UserJpaEntity extends BaseJpaEntity {
     @Column(nullable = false, length = 20)
     private UserStatus status;
 
-    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     @Column(name = "cpf_ciphertext", columnDefinition = "TEXT")
     private String cpfCiphertext;
 
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "cpf_lookup_hash", columnDefinition = "CHAR(64)", length = 64)
+    @Column(name = "cpf_lookup_hash", length = 64)
     private String cpfLookupHash;
+
+    @Column(name = "phone_ciphertext", columnDefinition = "TEXT")
+    private String phoneCiphertext;
+
+    @Column(name = "phone_lookup_hash", length = 64)
+    private String phoneLookupHash;
 
     protected UserJpaEntity() {
     }
 
-    UserJpaEntity(UUID id, String email, String passwordHash, String name,
-                  Role role, UserStatus status, String cpfCiphertext, String cpfLookupHash) {
+    public UserJpaEntity(
+            UUID id,
+            String emailCiphertext,
+            String emailLookupHash,
+            String passwordHash,
+            String name,
+            Role role,
+            UserStatus status,
+            String cpfCiphertext,
+            String cpfLookupHash,
+            String phoneCiphertext,
+            String phoneLookupHash) {
         super(id);
-        this.email = email;
+        this.emailCiphertext = emailCiphertext;
+        this.emailLookupHash = emailLookupHash;
         this.passwordHash = passwordHash;
         this.name = name;
         this.role = role;
         this.status = status;
         this.cpfCiphertext = cpfCiphertext;
         this.cpfLookupHash = cpfLookupHash;
+        this.phoneCiphertext = phoneCiphertext;
+        this.phoneLookupHash = phoneLookupHash;
     }
 
-    String getEmail() { return email; }
-    String getPasswordHash() { return passwordHash; }
-    String getName() { return name; }
-    Role getRole() { return role; }
-    UserStatus getStatus() { return status; }
-    String getCpfCiphertext() { return cpfCiphertext; }
-    String getCpfLookupHash() { return cpfLookupHash; }
+    public String getEmailCiphertext() {
+        return emailCiphertext;
+    }
 
-    void updateCpf(String ciphertext, String lookupHash) {
+    public String getEmailLookupHash() {
+        return emailLookupHash;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public UserStatus getStatus() {
+        return status;
+    }
+
+    public String getCpfCiphertext() {
+        return cpfCiphertext;
+    }
+
+    public String getCpfLookupHash() {
+        return cpfLookupHash;
+    }
+
+    public String getPhoneCiphertext() {
+        return phoneCiphertext;
+    }
+
+    public String getPhoneLookupHash() {
+        return phoneLookupHash;
+    }
+
+    public void updateEmail(String ciphertext, String lookupHash) {
+        this.emailCiphertext = ciphertext;
+        this.emailLookupHash = lookupHash;
+    }
+
+    public void updateCpf(String ciphertext, String lookupHash) {
         this.cpfCiphertext = ciphertext;
         this.cpfLookupHash = lookupHash;
     }
 
-    void applyChanges(User user) {
-        this.name = user.name();
+    public void updatePhone(String ciphertext, String lookupHash) {
+        this.phoneCiphertext = ciphertext;
+        this.phoneLookupHash = lookupHash;
+    }
+
+    public void applyChanges(User user) {
         this.passwordHash = user.passwordHash();
+        this.name = user.name();
         this.role = user.role();
         this.status = user.status();
     }

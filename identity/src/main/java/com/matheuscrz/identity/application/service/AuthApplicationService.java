@@ -18,6 +18,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class AuthApplicationService implements AuthenticateUserUseCase {
 
@@ -49,10 +52,16 @@ public class AuthApplicationService implements AuthenticateUserUseCase {
         String sanitizedPassword = UserInputNormalizer.sanitizePassword(command.rawPassword());
         Email email = Email.of(normalizedEmail);
 
+        log.info("Tentativa de login recebida. emailMasked={}", email.masked());
+
         User user = userRepository.findByEmail(email)
-                .orElseThrow(InvalidCredentialsException::new);
+                .orElseThrow(() -> {
+                    log.warn("Falha de login: usuário não encontrado. emailMasked={}", email.masked());
+                    return new InvalidCredentialsException();
+                });
 
         if (!user.canAuthenticate() || !passwordSecurity.matches(sanitizedPassword, user.passwordHash())) {
+            log.warn("Falha de login: credenciais inválidas. userId={}", user.id());
             throw new InvalidCredentialsException();
         }
 
@@ -72,6 +81,7 @@ public class AuthApplicationService implements AuthenticateUserUseCase {
         refreshTokenRepository.save(refreshToken);
         String accessToken = tokenProvider.generateAccessToken(user);
 
+        log.info("Login realizado com sucesso. userId={}, familyId={}", user.id(), familyId);
         return new AuthTokens(accessToken, rawRefreshToken);
     }
 
@@ -84,6 +94,11 @@ public class AuthApplicationService implements AuthenticateUserUseCase {
                 .orElseThrow(InvalidRefreshTokenException::new);
 
         if (currentToken.isReuseAttempt()) {
+            log.error(
+                    "Reuso de refresh token detectado. userId={}, familyId={}",
+                    currentToken.userId(),
+                    currentToken.familyId());
+
             refreshTokenRepository.revokeFamilyOnReuseDetection(currentToken.familyId());
             throw new InvalidRefreshTokenException();
         }
@@ -110,6 +125,12 @@ public class AuthApplicationService implements AuthenticateUserUseCase {
         refreshTokenRepository.save(newRefreshToken);
 
         String newAccessToken = tokenProvider.generateAccessToken(user);
+
+        log.info(
+                "Refresh token rotacionado com sucesso. userId={}, familyId={}",
+                user.id(),
+                currentToken.familyId());
+
         return new AuthTokens(newAccessToken, newRawToken);
     }
 
@@ -123,6 +144,11 @@ public class AuthApplicationService implements AuthenticateUserUseCase {
         refreshTokenRepository.findByTokenHash(hash).ifPresent(token -> {
             token.revoke();
             refreshTokenRepository.save(token);
+
+            log.info(
+                    "Sessão encerrada. userId={}, familyId={}",
+                    token.userId(),
+                    token.familyId());
         });
     }
 }

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
+import org.slf4j.MDC;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -39,10 +40,17 @@ public class OutboxEventDispatcher {
                         TOPIC,
                         event.getAggregateId(),
                         event.getPayload());
+
                 record.headers().add(
                         new RecordHeader("eventType", event.getEventType().name().getBytes(StandardCharsets.UTF_8)));
                 record.headers()
                         .add(new RecordHeader("eventId", event.getId().toString().getBytes(StandardCharsets.UTF_8)));
+
+                String currentCorrId = MDC.get("correlationId");
+                if (currentCorrId != null) {
+                    record.headers()
+                            .add(new RecordHeader("correlationId", currentCorrId.getBytes(StandardCharsets.UTF_8)));
+                }
 
                 kafkaTemplate.send(record).get(3, TimeUnit.SECONDS);
                 event.markPublished(clock);

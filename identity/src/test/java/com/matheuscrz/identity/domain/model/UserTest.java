@@ -20,7 +20,8 @@ class UserTest {
                 Email.of("dev@shopflow.dev"),
                 "$argon2id$v=19$m=65536,t=3,p=1$fakeHash",
                 "Matheus Cruz",
-                null,
+                null, // cpf
+                null, // phone
                 Role.CUSTOMER,
                 UserStatus.ACTIVE,
                 Instant.now());

@@ -40,6 +40,7 @@ class JwtTokenProviderAdapterTest {
                 "hash",
                 "Cliente Teste",
                 new Cpf("52998224725"),
+                "11999998888",
                 Role.CUSTOMER,
                 UserStatus.ACTIVE,
                 fixedClock.instant());

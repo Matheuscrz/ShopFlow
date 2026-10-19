@@ -36,6 +36,9 @@ class RefreshTokenPersistenceIntegrationTest extends AbstractIntegrationTest {
         void shouldPersistAndRevokeTokensInFamily() {
                 Instant now = Instant.now();
                 UUID userId = UUID.randomUUID();
+                String uniquePhone = "11" + userId.toString()
+                                .replace("-", "")
+                                .substring(0, 9);
 
                 // 1. Criar e persistir o usuário com CPF válido ("12345678909") e e-mail único
                 User user = User.registerCustomer(
@@ -44,6 +47,7 @@ class RefreshTokenPersistenceIntegrationTest extends AbstractIntegrationTest {
                                 "$argon2id$v=19$m=65536,t=3,p=1$fakeHashParaTeste",
                                 "Usuário Teste",
                                 new Cpf("07213125001"),
+                                uniquePhone,
                                 now);
                 userRepository.save(user);
 

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <springProperty scope="context"
+                    name="appName"
+                    source="spring.application.name"
+                    defaultValue="identity"/>
+
+    <springProperty scope="context"
+                    name="activeProfile"
+                    source="spring.profiles.active"
+                    defaultValue="local"/>
+
+    <springProperty scope="context"
+                    name="logPath"
+                    source="logging.file.path"
+                    defaultValue="./logs"/>
+
+    <appender name="CONSOLE_PRETTY"
+              class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>
+                %d{HH:mm:ss.SSS} %highlight(%-5level) %cyan([%X{correlationId:-no-corr}]) %yellow([%X{traceId:-}]) %logger{36} - %msg%n%ex{full}
+            </pattern>
+        </encoder>
+    </appender>
+
+    <appender name="CONSOLE_JSON"
+              class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <fieldNames>
+                <timestamp>timestamp</timestamp>
+                <message>message</message>
+                <logger>logger</logger>
+                <thread>thread</thread>
+                <level>level</level>
+                <levelValue>[ignore]</levelValue>
+            </fieldNames>
+
+            <customFields>{"app":"${appName}","env":"${activeProfile}"}</customFields>
+
+            <includeMdcKeyName>correlationId</includeMdcKeyName>
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>spanId</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>requestPath</includeMdcKeyName>
+
+            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                <maxDepthPerCause>20</maxDepthPerCause>
+                <shortenedClassNameLength>20</shortenedClassNameLength>
+                <rootCauseFirst>true</rootCauseFirst>
+            </throwableConverter>
+
+            <includeCallerData>false</includeCallerData>
+        </encoder>
+    </appender>
+
+    <appender name="ASYNC_JSON"
+              class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="CONSOLE_JSON"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <includeCallerData>false</includeCallerData>
+        <neverBlock>true</neverBlock>
+    </appender>
+
+    <appender name="FILE_DEV"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${logPath}/identity.log</file>
+        <append>true</append>
+
+        <encoder>
+            <pattern>
+                %d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{correlationId:-no-corr}] [%X{traceId:-}] %logger{36} - %msg%n%ex{full}
+            </pattern>
+        </encoder>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>
+                ${logPath}/archive/identity.%d{yyyy-MM-dd}.%i.log.gz
+            </fileNamePattern>
+            <maxFileSize>20MB</maxFileSize>
+            <maxHistory>15</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <springProfile name="local,dev,test,default">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_PRETTY"/>
+            <appender-ref ref="FILE_DEV"/>
+        </root>
+
+        <logger name="org.springframework.web" level="DEBUG"/>
+        <logger name="org.springframework.transaction" level="TRACE"/>
+        <logger name="org.springframework.orm.jpa.JpaTransactionManager" level="DEBUG"/>
+        <logger name="org.springframework.kafka" level="DEBUG"/>
+        <logger name="org.hibernate.SQL" level="DEBUG"/>
+        <logger name="org.hibernate.orm.jdbc.bind" level="TRACE"/>
+    </springProfile>
+
+    <springProfile name="docker,hml,prod">
+        <root level="INFO">
+            <appender-ref ref="ASYNC_JSON"/>
+        </root>
+
+        <logger name="org.springframework" level="WARN"/>
+        <logger name="org.hibernate" level="WARN"/>
+        <logger name="org.springframework.kafka" level="WARN"/>
+        <logger name="com.zaxxer.hikari" level="WARN"/>
+    </springProfile>
+
+</configuration>

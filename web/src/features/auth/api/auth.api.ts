@@ -14,6 +14,7 @@ export const authApi = {
       name: sanitizeText(data.name),
       email: sanitizeText(data.email),
       cpf: data.cpf,
+      phone: data.phone,
       password: data.password,
     });
 

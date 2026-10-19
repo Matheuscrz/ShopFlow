@@ -4,12 +4,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 import java.util.UUID;
 
-interface SpringDataUserJpaRepository extends JpaRepository<UserJpaEntity, UUID> {
-    Optional<UserJpaEntity> findByEmail(String email);
+public interface SpringDataUserJpaRepository
+        extends JpaRepository<UserJpaEntity, UUID> {
 
-    boolean existsByEmail(String email);
+    Optional<UserJpaEntity> findByEmailLookupHash(String emailLookupHash);
 
     Optional<UserJpaEntity> findByCpfLookupHash(String cpfLookupHash);
+
+    boolean existsByEmailLookupHash(String emailLookupHash);
 
     boolean existsByCpfLookupHash(String cpfLookupHash);
 }

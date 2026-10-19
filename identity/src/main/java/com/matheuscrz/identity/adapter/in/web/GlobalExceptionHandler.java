@@ -17,6 +17,9 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -86,6 +89,21 @@ public class GlobalExceptionHandler {
         problem.setProperty("message",
                 "Este CPF já possui cadastro. Deseja receber um e-mail de recuperação de senha no endereço "
                         + ex.getMaskedEmail() + "?");
+        return problem;
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail handleUnexpectedException(Exception ex) {
+        log.error("Erro interno não tratado na API", ex);
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Ocorreu um erro interno. Informe o Correlation-ID ao suporte.");
+
+        problem.setTitle("Erro Interno");
+        problem.setType(URI.create("https://shopflow.dev/errors/internal"));
+        problem.setProperty("timestamp", Instant.now());
+
         return problem;
     }
 }
