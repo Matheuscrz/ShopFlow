@@ -9,6 +9,7 @@ import { DashboardPage } from "../features/profile/pages/DashboardPage";
 import { ProfilePage } from "../features/profile/pages/ProfilePage";
 import { useAuthStore } from "../stores/auth-store";
 import { decodeUserFromToken } from "../lib/jwt";
+import { wsClient } from "../lib/websocket-client";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -38,6 +39,7 @@ export const AppRoutes: React.FC = () => {
   const [initializing, setInitializing] = useState(true);
   const sessionInitialized = useRef(false);
   const { setSession, clearSession } = useAuthStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   useEffect(() => {
     if (sessionInitialized.current) {
@@ -55,6 +57,18 @@ export const AppRoutes: React.FC = () => {
       .catch(() => clearSession())
       .finally(() => setInitializing(false));
   }, [setSession, clearSession]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      wsClient.connect();
+    } else {
+      wsClient.disconnect();
+    }
+
+    return () => {
+      wsClient.disconnect();
+    };
+  }, [isAuthenticated]);
 
   if (initializing) {
     return <FullPageSpinner />;
